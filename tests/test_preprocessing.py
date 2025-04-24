@@ -12,8 +12,8 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.data.preprocessing import (
-    clean_sales_data,
-    clean_review_data,
+    clean_retail_sales_data,
+    clean_product_reviews_data,
     handle_missing_values,
     encode_categorical_features,
     normalize_features,
@@ -68,7 +68,7 @@ def sample_review_data():
 
 def test_clean_sales_data(sample_sales_data):
     """Test cleaning sales data"""
-    cleaned_data = clean_sales_data(sample_sales_data)
+    cleaned_data = clean_retail_sales_data(sample_sales_data)
 
     # Check that all expected columns are present
     expected_columns = sample_sales_data.columns.tolist()
@@ -90,7 +90,7 @@ def test_clean_sales_data(sample_sales_data):
 
 def test_clean_review_data(sample_review_data):
     """Test cleaning review data"""
-    cleaned_data = clean_review_data(sample_review_data)
+    cleaned_data = clean_product_reviews_data(sample_review_data)
 
     # Check that all expected columns are present
     expected_columns = sample_review_data.columns.tolist()
