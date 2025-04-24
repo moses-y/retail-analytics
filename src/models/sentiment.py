@@ -44,7 +44,7 @@ def load_config() -> Dict:
 
 def preprocess_text(text: str) -> str:
     """
-    Preprocess text for sentiment analysis
+    Preprocess text for sentiment analysis with improved cleaning
 
     Args:
         text: Raw text
@@ -61,9 +61,39 @@ def preprocess_text(text: str) -> str:
     # Remove URLs
     text = re.sub(r'http\S+|www\S+|https\S+', '', text)
 
-    # Remove special characters and numbers
-    text = re.sub(r'[^\w\s]', '', text)
-    text = re.sub(r'\d+', '', text)
+    # Replace product names and numbers with generic tokens
+    text = re.sub(r'(product|model)\s*\d+', 'PRODUCT', text)
+    text = re.sub(r'\b\d+\s*(gb|tb|mb|kg|cm|inch)\b', 'SIZE', text)
+    text = re.sub(r'\$\s*\d+(\.\d+)?', 'PRICE', text)
+
+    # Replace common contractions
+    contractions = {
+        "ain't": "is not", "aren't": "are not", "can't": "cannot", 
+        "couldn't": "could not", "didn't": "did not", "doesn't": "does not",
+        "don't": "do not", "hadn't": "had not", "hasn't": "has not",
+        "haven't": "have not", "he'd": "he would", "he'll": "he will",
+        "he's": "he is", "i'd": "i would", "i'll": "i will", "i'm": "i am",
+        "i've": "i have", "isn't": "is not", "it's": "it is",
+        "let's": "let us", "shouldn't": "should not", "that's": "that is",
+        "they'd": "they would", "they'll": "they will", "they're": "they are",
+        "they've": "they have", "wasn't": "was not", "we'd": "we would",
+        "we'll": "we will", "we're": "we are", "we've": "we have",
+        "weren't": "were not", "what's": "what is", "where's": "where is",
+        "who's": "who is", "won't": "will not", "wouldn't": "would not",
+        "you'd": "you would", "you'll": "you will", "you're": "you are",
+        "you've": "you have"
+    }
+    for contraction, expansion in contractions.items():
+        text = text.replace(contraction, expansion)
+
+    # Remove special characters but keep important punctuation
+    text = re.sub(r'[^\w\s!?.,]', ' ', text)
+    
+    # Replace multiple punctuation with single
+    text = re.sub(r'([!?.])\1+', r'\1', text)
+    
+    # Convert numbers to text representation 
+    text = re.sub(r'\d+', 'NUM', text)
 
     # Remove extra whitespace
     text = re.sub(r'\s+', ' ', text).strip()
@@ -135,11 +165,11 @@ def prepare_sentiment_data(
 def extract_features(
     X_train: pd.Series,
     X_test: pd.Series,
-    max_features: int = 5000,
-    ngram_range: Tuple[int, int] = (1, 2)
+    max_features: int = 10000,  # Increased from 5000
+    ngram_range: Tuple[int, int] = (1, 3)  # Changed from (1, 2)
 ) -> Tuple[np.ndarray, np.ndarray, TfidfVectorizer]:
     """
-    Extract features from text using TF-IDF
+    Extract features from text using TF-IDF with improved parameters
 
     Args:
         X_train: Training text data
@@ -152,11 +182,16 @@ def extract_features(
     """
     logger.info("Extracting features from text")
 
-    # Create vectorizer
+    # Create vectorizer with improved parameters
     vectorizer = TfidfVectorizer(
         max_features=max_features,
         ngram_range=ngram_range,
-        stop_words='english'
+        stop_words='english',
+        min_df=2,  # Remove terms that appear in less than 2 documents
+        max_df=0.95,  # Remove terms that appear in more than 95% of documents
+        sublinear_tf=True,  # Apply sublinear scaling to term frequencies
+        strip_accents='unicode',
+        norm='l2'
     )
 
     # Transform text to features
@@ -191,9 +226,27 @@ def train_sentiment_model(
     config = load_config()
     default_params = config.get(model_type, {}).get("params", {})
 
-    # Use provided parameters or defaults
+    # Define better default parameters if none provided
     if params is None:
-        params = default_params
+        if model_type == 'logistic':
+            params = {
+                'C': 1.0,
+                'class_weight': 'balanced',
+                'max_iter': 1000,
+                'solver': 'lbfgs',
+                'multi_class': 'multinomial'
+            }
+        elif model_type == 'random_forest':
+            params = {
+                'n_estimators': 200,
+                'max_depth': 20,
+                'min_samples_split': 5,
+                'min_samples_leaf': 2,
+                'class_weight': 'balanced',
+                'random_state': 42
+            }
+        else:
+            params = default_params
 
     # Create and train model
     if model_type == 'logistic':
@@ -201,12 +254,16 @@ def train_sentiment_model(
     elif model_type == 'random_forest':
         model = RandomForestClassifier(**params)
     else:
-        logger.warning(f"Unsupported model type: {model_type}, using logistic regression")
+        logger.warning(f"Unsupported model type: {model_type}, using logistic regression with default params")
         model = LogisticRegression()
 
+    # Fit model
     model.fit(X_train, y_train)
-
-    logger.info(f"{model_type} model training completed")
+    
+    # Log training accuracy
+    train_accuracy = model.score(X_train, y_train)
+    logger.info(f"{model_type} model training completed with accuracy: {train_accuracy:.4f}")
+    
     return model
 
 

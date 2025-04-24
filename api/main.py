@@ -50,8 +50,8 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(forecasting.router, prefix="/api/v1", tags=["forecasting"])
-app.include_router(reviews.router, prefix="/api/v1", tags=["reviews"])
+app.include_router(forecasting.router, prefix="/api", tags=["forecasting"])
+app.include_router(reviews.router, prefix="/api", tags=["reviews"])
 
 # Prometheus metrics
 REQUEST_COUNT = Counter(
@@ -130,7 +130,7 @@ async def get_open_api_endpoint():
 @app.get("/health", tags=["health"])
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy"}
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn

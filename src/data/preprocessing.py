@@ -3,12 +3,9 @@ Data preprocessing module for retail analytics
 """
 import os
 import logging
-from typing import Dict, Tuple, Optional, Union, List
+from typing import Tuple
 
 import pandas as pd
-import numpy as np
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -33,7 +30,18 @@ def load_data(file_path: str) -> pd.DataFrame:
     file_extension = os.path.splitext(file_path)[1].lower()
 
     if file_extension == '.csv':
-        return pd.read_csv(file_path)
+        # Try reading with explicit comma separator
+        try:
+            # Attempt standard comma separation first
+            return pd.read_csv(file_path, sep=',')
+        except Exception as e_comma:
+            logger.warning(f"Failed to read {file_path} with comma separator: {e_comma}. Attempting auto-detection.")
+            # Fallback to pandas auto-detection if explicit comma fails
+            try:
+                return pd.read_csv(file_path)
+            except Exception as e_auto:
+                 logger.error(f"Failed to read CSV {file_path} with auto-detection: {e_auto}")
+                 raise e_auto # Re-raise the exception if auto-detect also fails
     elif file_extension == '.json' or file_extension == '.jsonl':
         return pd.read_json(file_path, lines=file_extension == '.jsonl')
     else:
@@ -125,6 +133,14 @@ def clean_product_reviews_data(df: pd.DataFrame) -> pd.DataFrame:
     for col in required_cols:
         if col not in cleaned_df.columns:
             logger.warning(f"Required column '{col}' not found in product reviews data")
+
+    # Generate product_id based on product name
+    if 'product' in cleaned_df.columns and 'product_id' not in cleaned_df.columns:
+        logger.info("Generating product_id from product name")
+        product_names = cleaned_df['product'].unique()
+        product_id_map = {name: f"P{i+1:03d}" for i, name in enumerate(product_names)}
+        cleaned_df['product_id'] = cleaned_df['product'].map(product_id_map)
+        logger.info("Added 'product_id' column")
 
     logger.info(f"Cleaned product reviews data: {cleaned_df.shape}")
     return cleaned_df
@@ -219,7 +235,7 @@ def save_processed_data(df: pd.DataFrame, output_path: str) -> None:
     file_extension = os.path.splitext(output_path)[1].lower()
 
     if file_extension == '.csv':
-        df.to_csv(output_path, index=False)
+        df.to_csv(output_path, index=False, sep=',') # Explicitly set separator
     elif file_extension == '.parquet':
         df.to_parquet(output_path, index=False)
     else:
@@ -262,6 +278,136 @@ def preprocess_pipeline(
     save_processed_data(cleaned_df, output_path)
 
     return cleaned_df
+
+
+def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Handle missing values in a DataFrame
+    
+    Args:
+        df: Input DataFrame
+        
+    Returns:
+        DataFrame with handled missing values
+    """
+    logger.info("Handling missing values")
+    
+    # Create a copy to avoid modifying the original
+    processed_df = df.copy()
+    
+    # For numeric columns, fill with median
+    numeric_cols = processed_df.select_dtypes(include=['number']).columns
+    for col in numeric_cols:
+        processed_df[col] = processed_df[col].fillna(processed_df[col].median())
+    
+    # For categorical columns, fill with mode
+    categorical_cols = processed_df.select_dtypes(include=['object']).columns
+    for col in categorical_cols:
+        if col != 'date' and col != 'store_id':  # Skip date and ID columns
+            processed_df[col] = processed_df[col].fillna(processed_df[col].mode()[0])
+    
+    return processed_df
+
+
+def clean_sales_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Clean sales data (alias for clean_retail_sales_data)
+    
+    Args:
+        df: Raw sales DataFrame
+        
+    Returns:
+        Cleaned DataFrame
+    """
+    return clean_retail_sales_data(df)
+
+
+def clean_review_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Clean review data (alias for clean_product_reviews_data)
+    
+    Args:
+        df: Raw review DataFrame
+        
+    Returns:
+        Cleaned DataFrame
+    """
+    return clean_product_reviews_data(df)
+
+
+def encode_categorical_features(df: pd.DataFrame, columns: list) -> pd.DataFrame:
+    """
+    Encode categorical features using one-hot encoding.
+    Args:
+        df: Input DataFrame
+        columns: List of column names to encode
+    Returns:
+        DataFrame with encoded features
+    """
+    logger.info(f"Encoding categorical features: {columns}")
+    result_df = df.copy()
+    for col in columns:
+        if col in result_df.columns:
+            dummies = pd.get_dummies(result_df[col], prefix=col)
+            result_df = pd.concat([result_df, dummies], axis=1)
+            result_df.drop(columns=[col], inplace=True)
+    return result_df
+
+
+def normalize_features(df: pd.DataFrame, feature_columns: list) -> pd.DataFrame:
+    """Normalize specified features to [0, 1] range."""
+    df = df.copy()
+    for col in feature_columns:
+        min_val = df[col].min()
+        max_val = df[col].max()
+        if min_val == max_val:
+            df[f"{col}_normalized"] = 0.0
+        else:
+            df[f"{col}_normalized"] = (df[col] - min_val) / (max_val - min_val)
+    return df
+
+
+def extract_date_features(df: pd.DataFrame, date_column: str = 'date') -> pd.DataFrame:
+    """
+    Extract date-related features from a datetime column
+    
+    Args:
+        df: Input DataFrame
+        date_column: Name of the datetime column
+        
+    Returns:
+        DataFrame with additional date features
+    """
+    logger.info(f"Extracting date features from {date_column}")
+    
+    # Create a copy to avoid modifying the original
+    df = df.copy()
+    
+    # Ensure date column is datetime
+    df[date_column] = pd.to_datetime(df[date_column])
+    
+    # Extract basic date components with date_ prefix
+    df['date_year'] = df[date_column].dt.year
+    df['date_month'] = df[date_column].dt.month
+    df['date_day'] = df[date_column].dt.day
+    df['date_day_of_week'] = df[date_column].dt.dayofweek
+    df['date_quarter'] = df[date_column].dt.quarter
+    
+    # Add derived features with date_ prefix
+    df['date_is_weekend'] = df['date_day_of_week'].isin([5, 6]).astype(int)
+    df['date_is_month_start'] = df[date_column].dt.is_month_start.astype(int)
+    df['date_is_month_end'] = df[date_column].dt.is_month_end.astype(int)
+    df['date_is_quarter_start'] = df[date_column].dt.is_quarter_start.astype(int)
+    df['date_is_quarter_end'] = df[date_column].dt.is_quarter_end.astype(int)
+    
+    # Add seasonal features
+    df['date_season'] = pd.cut(df['date_month'], 
+                         bins=[0, 3, 6, 9, 12], 
+                         labels=['Winter', 'Spring', 'Summer', 'Fall'],
+                         include_lowest=True)
+    
+    logger.info(f"Added date features with 'date_' prefix")
+    return df
 
 
 if __name__ == "__main__":

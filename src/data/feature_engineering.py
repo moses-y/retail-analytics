@@ -3,13 +3,10 @@ Feature engineering module for retail analytics
 """
 import os
 import logging
-from typing import Dict, List, Tuple, Optional, Union
+from typing import Dict, List, Tuple, Optional
 
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
 import holidays
 
 # Setup logging
@@ -219,6 +216,10 @@ def create_sales_features(df: pd.DataFrame) -> pd.DataFrame:
     # Create a copy to avoid modifying the original
     result_df = df.copy()
 
+    # Encode promotion column if it exists
+    if 'promotion' in result_df.columns:
+        result_df['promotion_encoded'] = pd.Categorical(result_df['promotion']).codes
+
     # Calculate online sales percentage
     if 'online_sales' in result_df.columns and 'total_sales' in result_df.columns:
         result_df['online_sales_pct'] = result_df['online_sales'] / result_df['total_sales']
@@ -281,6 +282,31 @@ def create_review_features(df: pd.DataFrame) -> pd.DataFrame:
 
     logger.info(f"Created review-specific features: {result_df.shape}")
     return result_df
+
+
+def create_customer_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Create customer-level features for segmentation.
+
+    Args:
+        df: DataFrame with sales data (must include columns like 'store_id', 'total_sales', 'avg_transaction', 'online_ratio', etc.)
+
+    Returns:
+        DataFrame with customer features
+    """
+    logger.info("Creating customer features for segmentation")
+
+    # Example aggregation: group by store_id or customer_id if available
+    group_col = 'customer_id' if 'customer_id' in df.columns else 'store_id'
+    agg_df = df.groupby(group_col).agg(
+        total_spend=('total_sales', 'sum'),
+        avg_transaction=('avg_transaction', 'mean'),
+        purchase_frequency=(group_col, 'size'),
+        days_since_last_purchase=('date', lambda x: (pd.Timestamp('today') - pd.to_datetime(x).max()).days),
+        online_ratio=('online_ratio', 'mean') if 'online_ratio' in df.columns else ('online_sales', 'sum')
+    ).reset_index()
+
+    return agg_df
 
 
 def create_feature_pipeline(

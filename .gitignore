@@ -102,6 +102,10 @@ site/
 data/processed/*
 !data/processed/.gitkeep
 
+# Vector DB data (can be regenerated)
+data/vector_db/*
+!data/vector_db/.gitkeep # Keep the directory itself if needed
+
 # Credentials
 credentials/
 *.pem

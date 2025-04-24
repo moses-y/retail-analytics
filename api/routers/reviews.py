@@ -20,7 +20,11 @@ from api.models import (
     Sentiment,
     RAGQuery,
     RAGResponse,
-    ErrorResponse
+    ErrorResponse,
+    ReviewRequest,
+    RAGRequest,
+    ProductRequest,
+    ProductResponse
 )
 from api.dependencies import (
     get_sentiment_model,
@@ -345,7 +349,7 @@ async def get_products(
 @router.get(
     "/reviews/features",
     response_model=Dict[str, List[Dict[str, Any]]],
-    responses={
+    responses={ 
         400: {"model": ErrorResponse},
         401: {"model": ErrorResponse},
         500: {"model": ErrorResponse}
@@ -435,6 +439,307 @@ async def get_product_features(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving product features: {str(e)}"
+        )
+
+
+@router.post(
+    "/analysis/reviews",
+    response_model=Dict[str, Any],
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    },
+    summary="Analyze product reviews",
+    description="Analyze product reviews and return sentiment distribution and insights"
+)
+async def analyze_product_reviews(
+    request: ReviewRequest,
+    api_key_valid: bool = Depends(verify_api_key),
+    review_data=Depends(get_review_data),
+    sentiment_model=Depends(get_sentiment_model)
+):
+    """Analyze product reviews and return sentiment distribution and insights"""
+    try:
+        # Parse dates
+        try:
+            start = pd.to_datetime(request.start_date)
+            end = pd.to_datetime(request.end_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid date format. Use YYYY-MM-DD."
+            )
+            
+        # Filter reviews
+        filtered_data = review_data[
+            (pd.to_datetime(review_data["date"]) >= start) &
+            (pd.to_datetime(review_data["date"]) <= end)
+        ]
+        
+        if request.product != "all":
+            filtered_data = filtered_data[filtered_data["product"] == request.product]
+            
+        filtered_data = filtered_data[filtered_data["rating"] >= request.min_rating]
+        
+        if request.sentiment != "all":
+            filtered_data = filtered_data[filtered_data["sentiment"] == request.sentiment]
+            
+        # Calculate sentiment distribution
+        sentiment_counts = filtered_data["sentiment"].value_counts()
+        total_reviews = len(filtered_data)
+        sentiment_distribution = {
+            sentiment: count / total_reviews 
+            for sentiment, count in sentiment_counts.items()
+        }
+        
+        # Extract feature sentiment
+        feature_sentiment = []
+        for _, review in filtered_data.iterrows():
+            features = extract_features(review["review_text"], sentiment_model)
+            if features:
+                for feature in features:
+                    feature_sentiment.append({
+                        "feature": feature.feature,
+                        "sentiment": feature.sentiment,
+                        "score": feature.sentiment_score,
+                        "mentions": feature.mentions
+                    })
+                    
+        # Get top reviews
+        top_reviews = []
+        for _, review in filtered_data.nlargest(5, "rating").iterrows():
+            top_reviews.append({
+                "review_id": review.get("review_id", f"REV{random.randint(10000, 99999)}"),
+                "text": review["review_text"],
+                "sentiment": review["sentiment"]
+            })
+            
+        response = {
+            "sentiment_distribution": sentiment_distribution,
+            "feature_sentiment": feature_sentiment,
+            "top_reviews": top_reviews,
+            "created_at": datetime.now()
+        }
+        
+        return response
+        
+    except Exception as e:
+        logger.exception("Error analyzing product reviews")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error analyzing product reviews: {str(e)}"
+        )
+
+
+@router.post(
+    "/rag/query",
+    response_model=RAGResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    },
+    summary="Query product information using RAG",
+    description="Use RAG to answer questions about products based on reviews"
+)
+async def rag_query(
+    request: RAGRequest,
+    api_key_valid: bool = Depends(verify_api_key),
+    embedding_model=Depends(get_embedding_model),
+    vector_db=Depends(get_vector_db),
+    rag_model=Depends(get_rag_model),
+    review_data=Depends(get_review_data)
+):
+    """Query product information using RAG"""
+    try:
+        # Filter reviews for the product
+        filtered_data = review_data[review_data["product_id"] == request.product_id]
+        
+        # Get relevant reviews using vector search
+        query_embedding = embedding_model.encode(request.query)
+        
+        # Query vector database
+        results = vector_db.query(
+            query_embeddings=[query_embedding.tolist()],
+            n_results=5,
+            where={"product_id": request.product_id}
+        )
+        
+        # Process results
+        sources = []
+        if results and len(results.get("ids", [[]])[0]) > 0:
+            for i, doc_id in enumerate(results["ids"][0]):
+                metadata = results["metadatas"][0][i] if "metadatas" in results else {}
+                document = results["documents"][0][i] if "documents" in results else ""
+                
+                sources.append({
+                    "review_id": metadata.get("review_id", f"REV{random.randint(10000, 99999)}"),
+                    "product": metadata.get("product", "Unknown"),
+                    "rating": metadata.get("rating", 3),
+                    "review_text": document,
+                    "relevance_score": float(results["distances"][0][i]) if "distances" in results else 0.5
+                })
+        else:
+            # Fall back to random sampling
+            sampled_reviews = filtered_data.sample(min(5, len(filtered_data)))
+            for _, review in sampled_reviews.iterrows():
+                sources.append({
+                    "review_id": review.get("review_id", f"REV{random.randint(10000, 99999)}"),
+                    "product": review["product"],
+                    "rating": review["rating"],
+                    "review_text": review["review_text"],
+                    "relevance_score": 0.5
+                })
+                
+        # Generate answer using RAG model
+        try:
+            prompt = generate_rag_prompt(request.query, sources)
+            response = rag_model.generate_content(prompt)
+            answer = response.text
+        except Exception as e:
+            logger.exception(f"Error generating RAG response: {e}")
+            answer = generate_fallback_answer(request.query, sources)
+            
+        # Get products mentioned
+        products_mentioned = list(set(source["product"] for source in sources))
+        
+        response = RAGResponse(
+            answer=answer,
+            sources=sources,
+            products_mentioned=products_mentioned,
+            created_at=datetime.now()
+        )
+        
+        return response
+        
+    except Exception as e:
+        logger.exception("Error processing RAG query")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing RAG query: {str(e)}"
+        )
+
+
+@router.get(
+    "/products",
+    response_model=List[Dict[str, Any]],
+    responses={
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    },
+    summary="Get product information",
+    description="Get information about all available products"
+)
+async def get_all_products(
+    api_key_valid: bool = Depends(verify_api_key),
+    review_data=Depends(get_review_data)
+):
+    """Get information about all available products"""
+    try:
+        products = []
+        for product, group in review_data.groupby("product"):
+            avg_rating = group["rating"].mean()
+            products.append({
+                "product_id": group["product_id"].iloc[0],
+                "name": product,
+                "category": group["category"].iloc[0],
+                "average_rating": round(avg_rating, 2),
+                "review_count": len(group)
+            })
+        return products
+        
+    except Exception as e:
+        logger.exception("Error retrieving products")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving products: {str(e)}"
+        )
+
+
+@router.post(
+    "/products/info",
+    response_model=ProductResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    },
+    summary="Get detailed product information",
+    description="Get detailed information about a specific product"
+)
+async def get_product_info(
+    request: ProductRequest,
+    api_key_valid: bool = Depends(verify_api_key),
+    review_data=Depends(get_review_data)
+):
+    """Get detailed information about a specific product"""
+    try:
+        # Get product data
+        product_data = review_data[review_data["product_id"] == request.product_id]
+        
+        if len(product_data) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Product with ID {request.product_id} not found"
+            )
+            
+        # Basic product info
+        product = product_data.iloc[0]
+        name = product["product"]
+        category = product["category"]
+        avg_rating = product_data["rating"].mean()
+        
+        # Get reviews if requested
+        reviews = None
+        if request.include_reviews:
+            reviews = []
+            for _, review in product_data.iterrows():
+                reviews.append({
+                    "review_id": review.get("review_id", f"REV{random.randint(10000, 99999)}"),
+                    "text": review["review_text"],
+                    "rating": review["rating"]
+                })
+                
+        # Get sales data if requested
+        sales = None
+        if request.include_sales:
+            total_sales = product_data["sales"].sum() if "sales" in product_data else 15000
+            sales_trend = []
+            
+            # Generate sample sales trend
+            dates = pd.date_range(end=datetime.now(), periods=30)
+            for date in dates:
+                sales_trend.append({
+                    "date": date.strftime("%Y-%m-%d"),
+                    "value": np.random.normal(total_sales/30, total_sales/100)
+                })
+                
+            sales = {
+                "total": total_sales,
+                "trend": sales_trend
+            }
+            
+        response = ProductResponse(
+            product_id=request.product_id,
+            name=name,
+            category=category,
+            average_rating=round(avg_rating, 2),
+            reviews=reviews,
+            sales=sales,
+            created_at=datetime.now()
+        )
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error retrieving product information")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving product information: {str(e)}"
         )
 
 
@@ -661,10 +966,15 @@ def generate_fallback_answer(query: str, sources: List[Dict[str, Any]]) -> str:
         rating = source["rating"]
 
         if product not in product_ratings:
-            product_ratings[product] = {"sum": 0, "count": 0}
+            product_ratings[product] = {"sum": 0.0, "count": 0} # Initialize sum as float
 
-        product_ratings[product]["sum"] += rating
-        product_ratings[product]["count"] += 1
+        # Convert rating to float before adding
+        try:
+            numeric_rating = float(rating)
+            product_ratings[product]["sum"] += numeric_rating
+            product_ratings[product]["count"] += 1
+        except (ValueError, TypeError):
+            logger.warning(f"Could not convert rating '{rating}' to number for product '{product}' in fallback answer.")
 
     # Calculate average ratings
     for product, data in product_ratings.items():

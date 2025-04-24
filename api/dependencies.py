@@ -3,11 +3,11 @@ Dependencies for FastAPI application
 """
 import os
 from functools import lru_cache
-from typing import Dict, Optional, List
 
 import yaml
 from fastapi import Depends, HTTPException, Header, status
-from pydantic import BaseSettings, Field
+from pydantic_settings import BaseSettings
+from pydantic import Field
 
 import mlflow
 import pandas as pd
@@ -15,17 +15,28 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 import xgboost as xgb
 from sklearn.cluster import KMeans
+import chromadb # Import chromadb for exception handling
+import logging # Import logging
+
+# Setup logging
+logger = logging.getLogger("api.dependencies")
 
 
 class Settings(BaseSettings):
     """Application settings"""
     environment: str = Field("development", env="ENVIRONMENT")
-    api_key: str = Field("", env="API_KEY")
+    api_key: str = Field("", env="API_KEY") 
     google_api_key: str = Field("", env="GOOGLE_API_KEY")
     huggingface_token: str = Field("", env="HUGGINGFACE_TOKEN")
+    google_application_credentials: str = Field("", env="GOOGLE_APPLICATION_CREDENTIALS")
+    database_url: str = Field("sqlite:///./retail_analytics.db", env="DATABASE_URL")
+    api_host: str = Field("0.0.0.0", env="API_HOST")
+    api_port: int = Field(8000, env="API_PORT")
+    dashboard_port: int = Field(8501, env="DASHBOARD_PORT")
 
     class Config:
         env_file = ".env"
+        case_sensitive = False
 
 
 @lru_cache()
@@ -212,9 +223,12 @@ def get_vector_db():
 
         # Get or create collection
         try:
+            # Try getting the collection first
             collection = client.get_collection(name=collection_name)
-        except ValueError:
+            logger.info(f"Found existing collection: {collection_name}")
+        except chromadb.errors.NotFoundError: # Corrected exception type
             # Collection doesn't exist, create it
+            logger.warning(f"Collection '{collection_name}' not found. Creating it.")
             collection = client.create_collection(
                 name=collection_name,
                 metadata={"hnsw:space": "cosine"}
@@ -238,8 +252,8 @@ def get_rag_model(settings: Settings = Depends(get_settings)):
         # Configure the Gemini API
         genai.configure(api_key=settings.google_api_key)
 
-        # Get the model
-        model = genai.GenerativeModel('gemini-pro')
+        # Get the model (using gemini-1.0-pro as a more standard name)
+        model = genai.GenerativeModel('gemini-1.0-pro')
         return model
     except Exception as e:
         # Log the error and raise

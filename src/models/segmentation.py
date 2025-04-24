@@ -187,7 +187,13 @@ def train_kmeans_model(
     
     # Use provided parameters or defaults
     if params is None:
-        params = default_params
+        params = default_params.copy()  # Make a copy to avoid modifying the original
+    else:
+        params = params.copy()
+    
+    # Remove n_clusters and random_state from params since we'll set them explicitly
+    params.pop('n_clusters', None)
+    params.pop('random_state', None)
     
     # Determine number of clusters if not provided
     if n_clusters is None:
@@ -679,6 +685,50 @@ def generate_segment_descriptions(
 
     logger.info("Generated segment descriptions")
     return descriptions
+
+
+def train_segmentation_model(data: pd.DataFrame, feature_cols: List[str], n_clusters: int = 3) -> Tuple[Any, np.ndarray]:
+    """
+    Wrapper function to train a segmentation model (defaults to KMeans)
+    
+    Args:
+        data: DataFrame with customer data
+        feature_cols: List of columns to use for segmentation
+        n_clusters: Number of clusters
+        
+    Returns:
+        Tuple of (trained_model, cluster_centers)
+    """
+    # Prepare the features
+    features_df, _, scaler = prepare_segmentation_data(
+        data, 
+        feature_columns=feature_cols
+    )
+    
+    # Train KMeans model
+    model = train_kmeans_model(features_df, n_clusters=n_clusters)
+    
+    return model, model.cluster_centers_
+
+
+def predict_segment(model: Any, data: pd.DataFrame, feature_cols: List[str]) -> np.ndarray:
+    """
+    Predict segments for new data
+    
+    Args:
+        model: Trained segmentation model
+        data: DataFrame with customer data
+        feature_cols: List of feature columns used for segmentation
+        
+    Returns:
+        Array of segment assignments
+    """
+    # Prepare the features
+    features_df = data[feature_cols].copy()
+    features_df = features_df.fillna(features_df.mean())
+    
+    # Make predictions
+    return model.predict(features_df)
 
 
 if __name__ == "__main__":

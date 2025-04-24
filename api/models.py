@@ -1,11 +1,11 @@
 """
 Pydantic models for API request and response schemas
 """
-from datetime import date, datetime
+from datetime import date as _date, datetime, timedelta
 from enum import Enum
-from typing import List, Dict, Optional, Union, Any
+from typing import List, Dict, Optional, Any
 
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class WeatherCondition(str, Enum):
@@ -54,7 +54,7 @@ class Sentiment(str, Enum):
 
 class SalesDataInput(BaseModel):
     """Input model for sales data"""
-    date: date = Field(..., description="Date of the sales data")
+    date: _date = Field(..., description="Date of the sales data")
     store_id: str = Field(..., description="Store identifier")
     category: Category = Field(..., description="Product category")
     weather: Optional[WeatherCondition] = Field(None, description="Weather condition")
@@ -62,8 +62,8 @@ class SalesDataInput(BaseModel):
     special_event: bool = Field(False, description="Whether there was a special event")
     dominant_age_group: Optional[AgeGroup] = Field(None, description="Dominant customer age group")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "date": "2023-06-15",
                 "store_id": "store_1",
@@ -74,6 +74,7 @@ class SalesDataInput(BaseModel):
                 "dominant_age_group": "25-34"
             }
         }
+    )
 
 
 class SalesForecastRequest(BaseModel):
@@ -83,14 +84,15 @@ class SalesForecastRequest(BaseModel):
     store_ids: Optional[List[str]] = Field(None, description="Filter by store IDs")
     categories: Optional[List[Category]] = Field(None, description="Filter by categories")
 
-    @validator('horizon')
+    @field_validator('horizon')
+    @classmethod
     def validate_horizon(cls, v):
         if v < 1 or v > 90:
             raise ValueError("Forecast horizon must be between 1 and 90 days")
         return v
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [
                     {
@@ -108,19 +110,20 @@ class SalesForecastRequest(BaseModel):
                 "categories": ["Electronics", "Clothing"]
             }
         }
+    )
 
 
 class ForecastPoint(BaseModel):
     """Model for a single forecast point"""
-    date: date = Field(..., description="Forecast date")
+    date: _date = Field(..., description="Forecast date")
     store_id: str = Field(..., description="Store identifier")
     category: Category = Field(..., description="Product category")
     predicted_sales: float = Field(..., description="Predicted sales value")
     lower_bound: Optional[float] = Field(None, description="Lower bound of prediction interval")
     upper_bound: Optional[float] = Field(None, description="Upper bound of prediction interval")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "date": "2023-06-16",
                 "store_id": "store_1",
@@ -130,6 +133,7 @@ class ForecastPoint(BaseModel):
                 "upper_bound": 1350.50
             }
         }
+    )
 
 
 class SalesForecastResponse(BaseModel):
@@ -139,8 +143,8 @@ class SalesForecastResponse(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="Timestamp of forecast creation")
     metrics: Optional[Dict[str, float]] = Field(None, description="Forecast evaluation metrics")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "forecasts": [
                     {
@@ -161,6 +165,70 @@ class SalesForecastResponse(BaseModel):
                 }
             }
         }
+    )
+
+
+class SalesRequest(BaseModel):
+    """Request model for sales data retrieval and forecasting"""
+    start_date: str = Field(..., description="Start date for sales data (YYYY-MM-DD)")
+    end_date: str = Field(..., description="End date for sales data (YYYY-MM-DD)")
+    store_id: str = Field(..., description="Store identifier")
+    category: str = Field(..., description="Product category")
+    forecast_days: int = Field(7, description="Number of days to forecast", ge=1, le=90)
+
+    @field_validator('end_date')
+    @classmethod
+    def validate_end_date(cls, v, values):
+        start = datetime.strptime(values.data.get('start_date', ''), '%Y-%m-%d')
+        end = datetime.strptime(v, '%Y-%m-%d')
+        if end < start:
+            raise ValueError("end_date must be after start_date")
+        return v
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "start_date": "2023-05-01",
+                "end_date": "2023-05-31",
+                "store_id": "store_1",
+                "category": "Electronics",
+                "forecast_days": 7
+            }
+        }
+    )
+
+
+class SalesResponse(BaseModel):
+    """Response model for sales data and forecasts"""
+    forecast: List[Dict[str, Any]] = Field(..., description="Forecast data points")
+    metrics: Dict[str, float] = Field(..., description="Forecast evaluation metrics")
+    feature_importance: List[Dict[str, Any]] = Field(..., description="Feature importance scores")
+    created_at: datetime = Field(default_factory=datetime.now, description="Timestamp of response creation")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "forecast": [
+                    {
+                        "date": "2023-06-01",
+                        "value": 1500.75
+                    }
+                ],
+                "metrics": {
+                    "r2": 0.85,
+                    "rmse": 125.5,
+                    "mae": 98.3
+                },
+                "feature_importance": [
+                    {
+                        "feature": "previous_sales",
+                        "importance": 0.4
+                    }
+                ],
+                "created_at": "2023-05-31T14:30:00.123Z"
+            }
+        }
+    )
 
 
 class ReviewInput(BaseModel):
@@ -170,16 +238,17 @@ class ReviewInput(BaseModel):
     category: str = Field(..., description="Product category")
     rating: int = Field(..., description="Rating (1-5)", ge=1, le=5)
     review_text: str = Field(..., description="Review text content")
-    date: Optional[date] = Field(None, description="Review date")
+    date: Optional[_date] = Field(None, description="Review date")
 
-    @validator('rating')
+    @field_validator('rating')
+    @classmethod
     def validate_rating(cls, v):
         if v < 1 or v > 5:
             raise ValueError("Rating must be between 1 and 5")
         return v
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "review_id": "REV12345",
                 "product": "TechPro X20",
@@ -189,6 +258,7 @@ class ReviewInput(BaseModel):
                 "date": "2023-05-20"
             }
         }
+    )
 
 
 class ReviewAnalysisRequest(BaseModel):
@@ -198,8 +268,8 @@ class ReviewAnalysisRequest(BaseModel):
     include_features: bool = Field(True, description="Extract mentioned features")
     include_summary: bool = Field(True, description="Generate review summary")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "reviews": [
                     {
@@ -216,6 +286,7 @@ class ReviewAnalysisRequest(BaseModel):
                 "include_summary": True
             }
         }
+    )
 
 
 class FeatureSentiment(BaseModel):
@@ -225,8 +296,8 @@ class FeatureSentiment(BaseModel):
     sentiment: Sentiment = Field(..., description="Sentiment category")
     mentions: int = Field(1, description="Number of mentions")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "feature": "battery life",
                 "sentiment_score": 0.85,
@@ -234,6 +305,7 @@ class FeatureSentiment(BaseModel):
                 "mentions": 3
             }
         }
+    )
 
 
 class ReviewAnalysisResult(BaseModel):
@@ -246,8 +318,8 @@ class ReviewAnalysisResult(BaseModel):
     sentiment: Optional[Sentiment] = Field(None, description="Overall sentiment category")
     features: Optional[List[FeatureSentiment]] = Field(None, description="Feature-level sentiment")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "review_id": "REV12345",
                 "product": "TechPro X20",
@@ -271,6 +343,7 @@ class ReviewAnalysisResult(BaseModel):
                 ]
             }
         }
+    )
 
 
 class ProductSummary(BaseModel):
@@ -284,8 +357,8 @@ class ProductSummary(BaseModel):
     top_negative_features: List[FeatureSentiment] = Field(..., description="Top negative features")
     summary: str = Field(..., description="Generated summary of reviews")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "product": "TechPro X20",
                 "category": "Smartphones",
@@ -315,6 +388,7 @@ class ProductSummary(BaseModel):
                 "summary": "The TechPro X20 is highly regarded for its excellent battery life and camera quality. However, some users find the price to be too high."
             }
         }
+    )
 
 
 class ReviewAnalysisResponse(BaseModel):
@@ -324,8 +398,8 @@ class ReviewAnalysisResponse(BaseModel):
     model_version: str = Field(..., description="Version of the model used")
     created_at: datetime = Field(default_factory=datetime.now, description="Timestamp of analysis creation")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "results": [
                     {
@@ -379,6 +453,7 @@ class ReviewAnalysisResponse(BaseModel):
                 "created_at": "2023-06-15T14:35:12.456Z"
             }
         }
+    )
 
 
 class RAGQuery(BaseModel):
@@ -388,8 +463,8 @@ class RAGQuery(BaseModel):
     categories: Optional[List[str]] = Field(None, description="Filter by product categories")
     max_results: int = Field(5, description="Maximum number of results to return", ge=1, le=20)
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "query": "What are the best smartphones with good battery life?",
                 "products": ["TechPro X20", "PixelView 7"],
@@ -397,6 +472,7 @@ class RAGQuery(BaseModel):
                 "max_results": 5
             }
         }
+    )
 
 
 class RAGResponse(BaseModel):
@@ -406,8 +482,8 @@ class RAGResponse(BaseModel):
     products_mentioned: List[str] = Field(..., description="Products mentioned in the answer")
     created_at: datetime = Field(default_factory=datetime.now, description="Timestamp of response creation")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "answer": "Based on customer reviews, the TechPro X20 is highly regarded for its excellent battery life, with many users reporting that it lasts a full day with heavy use. The PixelView 7 also has good battery performance but is not as long-lasting as the TechPro X20.",
                 "sources": [
@@ -423,15 +499,154 @@ class RAGResponse(BaseModel):
                 "created_at": "2023-06-15T14:40:22.789Z"
             }
         }
+    )
+
+
+class ReviewRequest(BaseModel):
+    """Request model for retrieving product reviews"""
+    product: str = Field(..., description="Product name to get reviews for")
+    start_date: str = Field(..., description="Start date for review period (YYYY-MM-DD)")
+    end_date: str = Field(..., description="End date for review period (YYYY-MM-DD)")
+    min_rating: int = Field(1, description="Minimum rating to include", ge=1, le=5)
+    sentiment: str = Field("all", description="Filter by sentiment (all/positive/negative/neutral)")
+
+    @field_validator('end_date')
+    @classmethod
+    def validate_end_date(cls, v, values):
+        start = datetime.strptime(values.data.get('start_date', ''), '%Y-%m-%d')
+        end = datetime.strptime(v, '%Y-%m-%d')
+        if end < start:
+            raise ValueError("end_date must be after start_date")
+        return v
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "product": "TechPro X20",
+                "start_date": "2023-05-01",
+                "end_date": "2023-05-31",
+                "min_rating": 1,
+                "sentiment": "all"
+            }
+        }
+    )
+
+
+class ReviewResponse(BaseModel):
+    """Response model for product review analysis"""
+    sentiment_distribution: Dict[str, float] = Field(..., description="Distribution of sentiments")
+    feature_sentiment: List[Dict[str, Any]] = Field(..., description="Sentiment analysis by feature")
+    top_reviews: List[Dict[str, Any]] = Field(..., description="Most relevant reviews")
+    created_at: datetime = Field(default_factory=datetime.now, description="Timestamp of response creation")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "sentiment_distribution": {
+                    "positive": 0.65,
+                    "neutral": 0.25,
+                    "negative": 0.10
+                },
+                "feature_sentiment": [
+                    {
+                        "feature": "battery life",
+                        "sentiment": "positive",
+                        "score": 0.85,
+                        "mentions": 45
+                    }
+                ],
+                "top_reviews": [
+                    {
+                        "review_id": "REV12345",
+                        "text": "Great battery life!",
+                        "sentiment": "positive"
+                    }
+                ],
+                "created_at": "2023-05-31T14:30:00.123Z"
+            }
+        }
+    )
+
+
+class ProductRequest(BaseModel):
+    """Request model for product information"""
+    product_id: str = Field(..., description="Product identifier")
+    include_reviews: bool = Field(True, description="Include review data")
+    include_sales: bool = Field(True, description="Include sales data")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "product_id": "P001",
+                "include_reviews": True,
+                "include_sales": True
+            }
+        }
+    )
+
+
+class ProductResponse(BaseModel):
+    """Response model for product information"""
+    product_id: str = Field(..., description="Product identifier")
+    name: str = Field(..., description="Product name")
+    category: str = Field(..., description="Product category")
+    average_rating: float = Field(..., description="Average product rating")
+    reviews: Optional[List[Dict[str, Any]]] = Field(None, description="Product reviews")
+    sales: Optional[Dict[str, Any]] = Field(None, description="Sales information")
+    created_at: datetime = Field(default_factory=datetime.now, description="Timestamp of response creation")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "product_id": "P001",
+                "name": "TechPro X20",
+                "category": "Smartphones",
+                "average_rating": 4.2,
+                "reviews": [
+                    {
+                        "review_id": "REV12345",
+                        "text": "Great battery life!",
+                        "rating": 5
+                    }
+                ],
+                "sales": {
+                    "total": 15000,
+                    "trend": [
+                        {
+                            "date": "2023-05-01",
+                            "value": 500
+                        }
+                    ]
+                },
+                "created_at": "2023-05-31T14:30:00.123Z"
+            }
+        }
+    )
+
+
+class RAGRequest(BaseModel):
+    """Request model for RAG queries"""
+    query: str = Field(..., description="User query about products")
+    product_id: str = Field(..., description="Product identifier to focus query on")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "query": "What are the best features of the TechPro X20?",
+                "product_id": "P001"
+            }
+        }
+    )
 
 
 class ErrorResponse(BaseModel):
     """Model for API error responses"""
     detail: str = Field(..., description="Error detail message")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "detail": "Invalid input: Rating must be between 1 and 5"
             }
         }
+    )

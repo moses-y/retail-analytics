@@ -15,7 +15,8 @@ from api.models import (
     SalesForecastResponse,
     ForecastPoint,
     Category,
-    ErrorResponse
+    ErrorResponse,
+    SalesRequest  # Added import
 )
 from api.dependencies import (
     get_forecasting_model,
@@ -37,7 +38,7 @@ target_column = model_config["forecasting"]["xgboost"]["target"]
 
 
 @router.post(
-    "/forecasting/predict",
+    "/forecast/sales",
     response_model=SalesForecastResponse,
     responses={
         400: {"model": ErrorResponse},
@@ -96,6 +97,77 @@ async def forecast_sales(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating forecasts: {str(e)}"
+        )
+
+
+@router.post(
+    "/analysis/sales",
+    response_model=Dict[str, Any],
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    },
+    summary="Analyze historical sales data",
+    description="Analyze historical sales data and return insights"
+)
+async def analyze_sales(
+    request: SalesRequest,  # Changed model to SalesRequest
+    api_key_valid: bool = Depends(verify_api_key),
+    retail_data=Depends(get_retail_data)
+):
+    """Analyze historical sales data and return insights"""
+    try:
+        # Parse dates
+        try:
+            start = pd.to_datetime(request.start_date)
+            end = pd.to_datetime(request.end_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid date format. Use YYYY-MM-DD."
+            )
+
+        # Filter data by date range
+        filtered_data = retail_data[
+            (pd.to_datetime(retail_data["date"]) >= start) &
+            (pd.to_datetime(retail_data["date"]) <= end)
+        ]
+
+        if request.store_id != "all":
+            filtered_data = filtered_data[filtered_data["store_id"] == request.store_id]
+            
+        if request.category != "all":
+            filtered_data = filtered_data[filtered_data["category"] == request.category]
+
+        # Calculate metrics
+        total_sales = filtered_data["total_sales"].sum()
+        sales_by_category = filtered_data.groupby("category")["total_sales"].sum().to_dict()
+        sales_by_channel = {
+            "online": filtered_data["online_sales"].sum(),
+            "in_store": filtered_data["in_store_sales"].sum()
+        }
+        sales_trend = filtered_data.groupby("date")["total_sales"].sum().reset_index()
+        sales_trend = sales_trend.rename(columns={"total_sales": "value"})
+        
+        response = {
+            "total_sales": total_sales,
+            "sales_by_category": [
+                {"category": k, "value": v} for k, v in sales_by_category.items()
+            ],
+            "sales_by_channel": sales_by_channel,
+            "sales_trend": sales_trend.to_dict(orient="records")
+        }
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error analyzing sales data")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error analyzing sales data: {str(e)}"
         )
 
 

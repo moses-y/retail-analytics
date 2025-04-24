@@ -357,7 +357,13 @@ def test_analyze_feature_sentiment(prepared_sentiment_data):
 
 # --- Plotting Tests (Check Execution) ---
 
+# Switch backend for all plotting tests in this module before defining tests
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 def test_plot_forecast_importance_runs(prepared_forecast_data, tmp_path):
+    # Backend is set above
     model = train_xgboost_model(prepared_forecast_data['X_train'], prepared_forecast_data['y_train'])
     plot_path = tmp_path / "forecast_importance.png"
     try:

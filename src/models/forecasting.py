@@ -5,17 +5,14 @@ import os
 import logging
 import pickle
 import yaml
-from typing import Dict, List, Tuple, Optional, Union, Any
+from typing import Dict, List, Tuple, Optional, Any
 
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import xgboost as xgb
 from lightgbm import LGBMRegressor
 import matplotlib.pyplot as plt
-import seaborn as sns
 from prophet import Prophet
 
 # Setup logging
@@ -77,17 +74,17 @@ def prepare_forecasting_data(
     numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
     categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
 
-    # Remove target, date, and group columns from features
-    exclude_cols = [target_column, date_column] + group_columns
+    # Remove target and group columns from features, but keep date
+    exclude_cols = [target_column] + group_columns
     numeric_features = [col for col in numeric_cols if col not in exclude_cols]
-    categorical_features = [col for col in categorical_cols if col not in exclude_cols]
+    categorical_features = [col for col in categorical_cols if col not in exclude_cols and col != date_column]
 
     # Create dummy variables for categorical features
     df_encoded = pd.get_dummies(df, columns=categorical_features, drop_first=False)
 
     # Get all feature columns
     feature_cols = [col for col in df_encoded.columns
-                   if col not in [target_column, date_column] + group_columns]
+                   if col not in [target_column] + group_columns]
 
     # Split data by time
     split_date = df[date_column].max() - pd.Timedelta(days=int(len(df[date_column].unique()) * test_size))
@@ -155,16 +152,21 @@ def train_xgboost_model(
     if params is None:
         params = default_params
 
-    # Create model
+    # Remove datetime columns and store feature columns
+    numeric_features = X_train.select_dtypes(include=['int64', 'float64', 'bool']).columns
+    X_train_numeric = X_train[numeric_features]
+    
+    # Store feature columns in model for prediction
     model = xgb.XGBRegressor(**params)
-
-    # Train model
     model.fit(
-        X_train,
+        X_train_numeric,
         y_train,
-        eval_set=[(X_train, y_train)],
+        eval_set=[(X_train_numeric, y_train)],
         verbose=False
     )
+    
+    # Store feature columns as an attribute
+    model.feature_columns_ = numeric_features.tolist()
 
     logger.info("XGBoost model training completed")
     return model
@@ -281,6 +283,9 @@ def evaluate_forecast_model(
     logger.info(f"Evaluating {model_type} model")
 
     if model_type in ['xgboost', 'lightgbm']:
+        # Use stored feature columns for prediction
+        if hasattr(model, 'feature_columns_'):
+            X_test = X_test[model.feature_columns_]
         # Make predictions
         y_pred = model.predict(X_test)
     elif model_type == 'prophet':
@@ -330,8 +335,12 @@ def plot_feature_importance(
     plt.figure(figsize=(12, 8))
 
     if model_type == 'xgboost':
-        # Get feature importance from XGBoost model
+        # Get feature importance from XGBoost model and match with actual features used
+        if hasattr(model, 'feature_columns_'):
+            feature_names = model.feature_columns_
         importance = model.feature_importances_
+        n_features = min(len(importance), len(feature_names))
+        top_n = min(top_n, n_features)
         indices = np.argsort(importance)[-top_n:]
 
         plt.barh(range(top_n), importance[indices])
@@ -340,6 +349,8 @@ def plot_feature_importance(
     elif model_type == 'lightgbm':
         # Get feature importance from LightGBM model
         importance = model.feature_importances_
+        n_features = min(len(importance), len(feature_names))
+        top_n = min(top_n, n_features)
         indices = np.argsort(importance)[-top_n:]
 
         plt.barh(range(top_n), importance[indices])
@@ -490,6 +501,10 @@ def generate_forecast(
     result = {}
 
     if model_type in ['xgboost', 'lightgbm']:
+        # Use stored feature columns if available
+        if hasattr(model, 'feature_columns_'):
+            X_future = X_future[model.feature_columns_]
+            
         # Generate point forecasts
         result['forecast'] = model.predict(X_future)
 
@@ -500,7 +515,7 @@ def generate_forecast(
                 try:
                     result['lower'] = model.predict(X_future, ntree_limit=model.best_ntree_limit, iteration_range=(0, model.best_ntree_limit), quantile=alpha/2)
                     result['upper'] = model.predict(X_future, ntree_limit=model.best_ntree_limit, iteration_range=(0, model.best_ntree_limit), quantile=1-alpha/2)
-                except:
+                except Exception:
                     # Fall back to simple intervals
                     std_dev = np.std(result['forecast']) * 1.96  # Approximate 95% interval
                     result['lower'] = result['forecast'] - std_dev
@@ -530,6 +545,48 @@ def generate_forecast(
     return result
 
 
+def predict_sales(model: Any, X: pd.DataFrame, feature_cols: List[str]) -> np.ndarray:
+    """
+    Make sales predictions using the trained model
+
+    Args:
+        model: Trained forecasting model
+        X: Features for prediction
+        feature_cols: List of feature column names to use for prediction
+
+    Returns:
+        Array of predicted sales values
+    """
+    logger.info("Making predictions")
+
+    if hasattr(model, 'feature_columns_'):
+        # Use stored feature columns if available
+        X = X[model.feature_columns_]
+    else:
+        # Otherwise use provided feature columns
+        X = X[feature_cols]
+
+    # Ensure predictions are numeric
+    predictions = model.predict(X)
+    return predictions.astype(np.float64)
+
+
+def train_forecasting_model(
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    params: Optional[dict] = None,
+    cv: int = 5
+) -> Tuple[xgb.XGBRegressor, np.ndarray]:
+    """Train XGBoost model for sales forecasting (wrapper for compatibility).
+    
+    Returns:
+        Tuple of (trained model, feature importance array)
+    """
+    model = train_xgboost_model(X_train, y_train, params=params, cv=cv)
+    importance = model.feature_importances_
+    return model, importance
+
+
 if __name__ == "__main__":
     # Example usage
     import argparse
@@ -555,7 +612,7 @@ if __name__ == "__main__":
 
     # Train model
     if args.model == 'xgboost':
-        model = train_xgboost_model(X_train, y_train)
+        model, importance = train_forecasting_model(X_train, y_train)
     elif args.model == 'lightgbm':
         model = train_lightgbm_model(X_train, y_train)
     elif args.model == 'prophet':
