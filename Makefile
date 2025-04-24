@@ -1,7 +1,7 @@
 .PHONY: setup data clean lint test docs
 
 setup:
-	pip install -r requirements.txt
+	uv pip install -r requirements.txt # Use uv for installation
 
 data:
 	python src/data/preprocessing.py
