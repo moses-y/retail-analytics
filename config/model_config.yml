@@ -1,0 +1,123 @@
+# Model configuration for retail analytics AI project
+
+# Sales Forecasting Models
+forecasting:
+  xgboost:
+    model_type: "xgboost"
+    params:
+      objective: "reg:squarederror"
+      n_estimators: 100
+      max_depth: 6
+      learning_rate: 0.1
+      subsample: 0.8
+      colsample_bytree: 0.8
+      random_state: 42
+    features:
+      - "store_id"
+      - "category"
+      - "weather"
+      - "promotion"
+      - "special_event"
+      - "dominant_age_group"
+      - "day_of_week"
+      - "month"
+      - "is_weekend"
+      - "is_holiday"
+      - "lag_1_sales"
+      - "lag_7_sales"
+      - "rolling_7_mean"
+      - "rolling_30_mean"
+    target: "total_sales"
+    evaluation_metrics:
+      - "rmse"
+      - "mae"
+      - "r2"
+  
+  prophet:
+    model_type: "prophet"
+    params:
+      seasonality_mode: "multiplicative"
+      yearly_seasonality: true
+      weekly_seasonality: true
+      daily_seasonality: false
+      changepoint_prior_scale: 0.05
+      seasonality_prior_scale: 10.0
+    features:
+      - "store_id"
+      - "category"
+      - "promotion"
+      - "special_event"
+    target: "total_sales"
+    evaluation_metrics:
+      - "rmse"
+      - "mae"
+      - "mape"
+
+# Customer Segmentation Models
+segmentation:
+  kmeans:
+    model_type: "kmeans"
+    params:
+      n_clusters: 5
+      random_state: 42
+      n_init: 10
+      max_iter: 300
+    features:
+      - "avg_transaction"
+      - "total_sales"
+      - "online_ratio"
+      - "return_rate"
+      - "purchase_frequency"
+      - "category_preferences"
+    preprocessing:
+      scaling: "standard"
+    evaluation_metrics:
+      - "silhouette_score"
+      - "davies_bouldin_score"
+      - "calinski_harabasz_score"
+
+# Sentiment Analysis Models
+sentiment:
+  distilbert:
+    model_type: "distilbert-base-uncased-finetuned-sst-2-english"
+    params:
+      batch_size: 16
+      epochs: 3
+      learning_rate: 2e-5
+      max_length: 128
+      weight_decay: 0.01
+    preprocessing:
+      tokenizer: "distilbert-base-uncased"
+      max_length: 128
+      truncation: true
+      padding: "max_length"
+    evaluation_metrics:
+      - "accuracy"
+      - "precision"
+      - "recall"
+      - "f1"
+
+# Text Embeddings
+embeddings:
+  sentence_transformer:
+    model_name: "all-MiniLM-L6-v2"
+    dimension: 384
+    batch_size: 32
+    normalize_embeddings: true
+  
+  vector_db:
+    type: "chroma"
+    params:
+      collection_name: "product_reviews"
+      distance_function: "cosine"
+      persist_directory: "./data/vector_db"
+
+# RAG Implementation
+rag:
+  model: "google/gemini-pro"
+  embedding_model: "all-MiniLM-L6-v2"
+  chunk_size: 512
+  chunk_overlap: 50
+  top_k: 5
+  temperature: 0.7
+  max_tokens: 1024

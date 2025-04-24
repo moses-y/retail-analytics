@@ -1,0 +1,180 @@
+name: Scheduled Tests
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight UTC
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov
+        pip install -r requirements.txt
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/unit/ --cov=src --cov=api --cov=dashboard --cov-report=xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov
+        pip install -r requirements.txt
+    
+    - name: Run integration tests
+      run: |
+        pytest tests/integration/ --cov=src --cov=api --cov=dashboard --cov-report=xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  data-quality-tests:
+    name: Data Quality Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install great-expectations pandas
+        pip install -r requirements.txt
+    
+    - name: Run data quality tests
+      run: |
+        mkdir -p great_expectations/uncommitted
+        great_expectations --v3-api checkpoint run data_quality_checkpoint
+
+  model-drift-tests:
+    name: Model Drift Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install evidently pandas scikit-learn
+        pip install -r requirements.txt
+    
+    - name: Run model drift tests
+      run: |
+        python src/monitoring/drift_detection.py --report-path drift_report.html
+    
+    - name: Upload drift report
+      uses: actions/upload-artifact@v3
+      with:
+        name: drift-report
+        path: drift_report.html
+
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install locust
+        pip install -r requirements.txt
+    
+    - name: Start API in background
+      run: |
+        uvicorn api.main:app --host 0.0.0.0 --port 8000 &
+        sleep 5  # Give the API time to start
+    
+    - name: Run performance tests
+      run: |
+        locust -f tests/performance/locustfile.py --headless -u 10 -r 2 --run-time 1m --host http://localhost:8000
+    
+    - name: Generate performance report
+      run: |
+        python tests/performance/generate_report.py
+    
+    - name: Upload performance report
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-report
+        path: performance_report.html
+
+  notify:
+    name: Send Notification
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, data-quality-tests, model-drift-tests, performance-tests]
+    if: always()
+    
+    steps:
+    - name: Check job status
+      id: check
+      run: |
+        if [[ "${{ needs.unit-tests.result }}" == "success" && \
+              "${{ needs.integration-tests.result }}" == "success" && \
+              "${{ needs.data-quality-tests.result }}" == "success" && \
+              "${{ needs.model-drift-tests.result }}" == "success" && \
+              "${{ needs.performance-tests.result }}" == "success" ]]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+        else
+          echo "status=failure" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Send Slack notification
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        SLACK_CHANNEL: monitoring
+        SLACK_COLOR: ${{ steps.check.outputs.status == 'success' && 'good' || 'danger' }}
+        SLACK_TITLE: Daily Test Results
+        SLACK_MESSAGE: ${{ steps.check.outputs.status == 'success' && 'All tests passed successfully! :rocket:' || 'Some tests failed. Please check the logs. :warning:' }}

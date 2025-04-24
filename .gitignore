@@ -1,0 +1,108 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+project.py
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Data files
+*.csv
+*.jsonl
+*.parquet
+*.xlsx
+*.xls
+*.db
+*.sqlite3
+
+# Exceptions for data files in raw directory
+!data/raw/*.csv
+!data/raw/*.jsonl
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Model files
+models/*
+!models/*/.gitkeep
+
+# MLflow
+mlruns/
+mlflow/
+
+# DVC
+.dvc/cache
+/dvc.lock
+/dvc.yaml
+
+# Logs
+logs/
+*.log
+
+# Streamlit
+.streamlit/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+tmp/
+temp/
+
+# Generated documentation
+docs/_build/
+site/
+
+# Processed data (can be regenerated)
+data/processed/*
+!data/processed/.gitkeep
+
+# Credentials
+credentials/
+*.pem
+*.key

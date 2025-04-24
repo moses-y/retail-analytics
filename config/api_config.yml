@@ -1,0 +1,83 @@
+# API Configuration for Retail Analytics AI
+
+# Server settings
+server:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  reload: true
+  debug: true
+  timeout: 60
+
+# CORS settings
+cors:
+  allow_origins:
+    - "http://localhost:8501"  # Streamlit dashboard
+    - "http://localhost:3000"  # Potential React frontend
+    - "*"  # For development
+  allow_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+  allow_headers:
+    - "*"
+  allow_credentials: true
+
+# Authentication
+auth:
+  enabled: false  # Set to true in production
+  token_expiration_minutes: 60
+  algorithm: "HS256"
+  secret_key_env: "API_SECRET_KEY"
+
+# Rate limiting
+rate_limiting:
+  enabled: true
+  requests_per_minute: 60
+  burst_size: 100
+
+# Endpoints
+endpoints:
+  forecasting:
+    path: "/api/v1/forecasting"
+    cache_ttl_seconds: 300
+    batch_size: 100
+  
+  reviews:
+    path: "/api/v1/reviews"
+    cache_ttl_seconds: 600
+    max_reviews: 1000
+  
+  segmentation:
+    path: "/api/v1/segments"
+    cache_ttl_seconds: 3600
+  
+  rag:
+    path: "/api/v1/rag"
+    cache_ttl_seconds: 60
+    max_tokens: 1024
+    timeout_seconds: 30
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/api.log"
+  rotation: "1 day"
+  retention: "30 days"
+
+# Monitoring
+monitoring:
+  enabled: true
+  metrics_path: "/metrics"
+  prometheus_exporter: true
+  request_tracing: true
+  performance_tracking: true
+
+# Model serving
+model_serving:
+  cache_size: 5  # Number of models to keep in memory
+  reload_interval_minutes: 60  # Check for new models every hour
+  models_directory: "./models"
+  fallback_strategy: "latest_version"  # Options: latest_version, specific_version

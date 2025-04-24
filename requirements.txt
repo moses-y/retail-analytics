@@ -1,0 +1,41 @@
+
+# Core Data Science
+pandas==1.5.3
+numpy==1.24.3
+scikit-learn==1.2.2
+matplotlib==3.7.1
+seaborn==0.12.2
+plotly==5.14.1
+
+# Machine Learning
+xgboost==1.7.5
+lightgbm==3.3.5
+prophet==1.1.4
+statsmodels==0.13.5
+
+# NLP & LLM
+transformers==4.28.1
+sentence-transformers==2.2.2
+nltk==3.8.1
+spacy==3.5.2
+faiss-cpu==1.7.4
+chromadb==0.4.6
+
+# API & Web
+fastapi==0.95.2
+uvicorn==0.22.0
+streamlit==1.22.0
+pydantic==1.10.8
+
+# MLOps
+mlflow==2.3.1
+dvc==2.58.2
+great-expectations==0.16.13
+prometheus-client==0.17.0
+evidently==0.3.1
+
+# Utilities
+python-dotenv==1.0.0
+pytest==7.3.1
+black==23.3.0
+isort==5.12.0
