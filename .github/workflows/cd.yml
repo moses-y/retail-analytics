@@ -35,6 +35,7 @@ jobs:
     
     - name: Run all tests
       run: |
+        source .venv/bin/activate # Activate venv first
         pytest tests/ --cov=src --cov=api --cov=dashboard --cov-report=xml
     
     - name: Upload coverage to Codecov

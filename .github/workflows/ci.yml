@@ -81,6 +81,7 @@ jobs:
     
     - name: Run unit tests
       run: |
+        source .venv/bin/activate # Activate venv first
         pytest tests/unit/ --cov=src --cov=api --cov=dashboard --cov-report=xml
     
     - name: Upload coverage to Codecov
@@ -119,6 +120,7 @@ jobs:
     
     - name: Run integration tests
       run: |
+        source .venv/bin/activate # Activate venv first
         pytest tests/integration/ --cov=src --cov=api --cov=dashboard --cov-report=xml
     
     - name: Upload coverage to Codecov
