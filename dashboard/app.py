@@ -128,47 +128,6 @@ with col4:
     st.markdown('<div class="metric-label">Sales Growth</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Recent insights
-st.markdown('<div class="sub-header">Recent Insights</div>', unsafe_allow_html=True)
-
-tab1, tab2, tab3 = st.tabs(["Sales Trends", "Customer Segments", "Product Reviews"])
-
-with tab1:
-    st.markdown("""
-    ### Sales Trends
-
-    - **Electronics** category shows 12% growth compared to last quarter
-    - **Home Goods** sales peak during weekends
-    - **Clothing** sales are higher during promotional periods
-    """)
-
-    # Placeholder for chart
-    st.image("https://placehold.co/800x400?text=Sales+Trends+Chart", use_column_width=True)
-
-with tab2:
-    st.markdown("""
-    ### Customer Segments
-
-    - **Segment 1**: High-value customers (15% of base, 40% of revenue)
-    - **Segment 2**: Regular shoppers (45% of base, 35% of revenue)
-    - **Segment 3**: Occasional buyers (40% of base, 25% of revenue)
-    """)
-
-    # Placeholder for chart
-    st.image("https://placehold.co/800x400?text=Customer+Segments+Chart", use_column_width=True)
-
-with tab3:
-    st.markdown("""
-    ### Product Reviews
-
-    - **TechPro X20** has the highest rating (4.8/5)
-    - Most mentioned features: battery life, design, durability
-    - Common improvement areas: price, customer service
-    """)
-
-    # Placeholder for chart
-    st.image("https://placehold.co/800x400?text=Product+Reviews+Chart", use_column_width=True)
-
 # Footer
 st.markdown('<div class="footer">Data last updated: 2025-04-24</div>', unsafe_allow_html=True)
 
