@@ -397,21 +397,26 @@ with tab3:
         for i, review in product_reviews.head(10).iterrows():
             st.markdown(f'<div class="review-card">', unsafe_allow_html=True)
 
+            # Safely access data using .get() with default values
+            product_name = review.get('product', 'N/A')
+            review_date_str = review.get('date').strftime('%Y-%m-%d') if pd.notna(review.get('date')) else 'N/A'
+            rating_val = review.get('rating', 0)
+            review_text_val = review.get('review_text', '')
+            feature = review.get('feature_mentioned', 'N/A')
+            attribute = review.get('attribute_mentioned', 'N/A')
+            sentiment = review.get('sentiment', 'N/A')
+
             # Review header
-            st.markdown(f"**{review['product']}** - {review['date'].strftime('%Y-%m-%d') if pd.notna(review['date']) else 'N/A'}")
+            st.markdown(f"**{product_name}** - {review_date_str}")
 
             # Rating
-            rating = int(review['rating']) if 'rating' in review and pd.notna(review['rating']) else 0
+            rating = int(rating_val) if pd.notna(rating_val) else 0
             st.markdown(f"{'⭐' * rating}")
 
             # Review text
-            st.markdown(f"{review['review_text']}")
+            st.markdown(f"{review_text_val}")
 
             # Features and sentiment
-            feature = review['feature_mentioned'] if 'feature_mentioned' in review and pd.notna(review['feature_mentioned']) else 'N/A'
-            attribute = review['attribute_mentioned'] if 'attribute_mentioned' in review and pd.notna(review['attribute_mentioned']) else 'N/A'
-            sentiment = review['sentiment'] if 'sentiment' in review and pd.notna(review['sentiment']) else 'N/A'
-
             sentiment_class = ''
             if sentiment == 'positive':
                 sentiment_class = 'positive'

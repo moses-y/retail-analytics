@@ -380,15 +380,22 @@ if 'weather' in filtered_data.columns:
     insights.append(f"Sales are highest during {top_weather['weather']} weather with ${top_weather['total_sales']:,.2f} in total sales.")
 
 # Promotion insights
-if 'promotion' in filtered_data.columns and 'promotion' in filtered_data.columns:
+if 'promotion' in filtered_data.columns:
     # Effect of promotions
-    promo_effect = filtered_data.groupby('promotion')['total_sales'].sum().reset_index()
-    if len(promo_effect) > 1:
-        promo_impact = promo_effect.set_index('promotion').loc['Discount', 'total_sales'] - promo_effect.set_index('promotion').loc['None', 'total_sales']
+    promo_effect = filtered_data.groupby('promotion')['total_sales'].sum() # Keep as Series with promotion as index
+    # Check if both 'Discount' and 'None' exist in the index
+    if 'Discount' in promo_effect.index and 'None' in promo_effect.index:
+        promo_impact = promo_effect['Discount'] - promo_effect['None']
         if promo_impact > 0:
-            insights.append(f"Promotions have a positive impact, increasing sales by ${promo_impact:,.2f}.")
+            insights.append(f"Promotions compared to no promotion show a positive impact, increasing sales by ${promo_impact:,.2f}.")
+        elif promo_impact < 0:
+             insights.append(f"Sales during promotions were lower than sales without promotions by ${abs(promo_impact):,.2f}.")
         else:
-            insights.append(f"Promotions do not appear to increase overall sales.")
+             insights.append(f"Sales during promotions were similar to sales without promotions.")
+    elif 'Discount' in promo_effect.index:
+        insights.append(f"Only 'Discount' promotions found in the filtered data. Total sales during discount: ${promo_effect['Discount']:,.2f}.")
+    elif 'None' in promo_effect.index:
+         insights.append(f"Only 'None' (no promotion) sales found in the filtered data. Total sales without promotion: ${promo_effect['None']:,.2f}.")
 
 # Display insights
 for i, insight in enumerate(insights):

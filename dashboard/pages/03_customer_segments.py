@@ -325,11 +325,32 @@ if 'cluster' in customer_data.columns:
         st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
+        # Define available options based on actual columns, excluding IDs/cluster
+        available_options = [
+            col for col in customer_data.columns
+            if col not in ['store_id', 'customer_id', 'cluster'] # Exclude potential ID columns and cluster
+        ]
+
+        # Define preferred default features
+        preferred_defaults = [
+            'total_sales', 'avg_transaction', 'num_customers',
+            'online_ratio', 'price_per_customer', 'return_rate'
+        ]
+
+        # Filter preferred defaults to only include those available in the data
+        actual_defaults = [
+            col for col in preferred_defaults if col in available_options
+        ]
+        # If no preferred defaults are available, select the first few available options
+        if not actual_defaults and available_options:
+             actual_defaults = available_options[:min(3, len(available_options))]
+
+
         # Select features to display
         features = st.multiselect(
-            "Select Features",
-            options=[col for col in customer_data.columns if col not in ['customer_id', 'cluster']],
-            default=['total_spend', 'purchase_frequency', 'days_since_last_purchase']
+            "Select Features for Distribution Plots",
+            options=available_options,
+            default=actual_defaults # Use filtered defaults
         )
 
         if features:
@@ -366,20 +387,21 @@ if 'total_spend' in customer_data.columns and 'purchase_frequency' in customer_d
         x_feature = st.selectbox(
             "X-Axis Feature",
             options=[col for col in customer_data.columns if col not in ['customer_id', 'cluster']],
-            index=customer_data.columns.get_loc('total_spend') if 'total_spend' in customer_data.columns else 0
+            index=available_options.index('total_sales') if 'total_sales' in available_options else 0
         )
 
     with col2:
         y_feature = st.selectbox(
             "Y-Axis Feature",
-            options=[col for col in customer_data.columns if col not in ['customer_id', 'cluster']],
-            index=customer_data.columns.get_loc('purchase_frequency') if 'purchase_frequency' in customer_data.columns else 0
+            options=available_options,
+            index=available_options.index('avg_transaction') if 'avg_transaction' in available_options else (1 if len(available_options) > 1 else 0) # Default to avg_transaction or second available
         )
 
-    # Create scatter plot
-    fig = px.scatter(
-        customer_data,
-        x=x_feature,
+    # Create scatter plot if features are selected
+    if x_feature and y_feature:
+        fig = px.scatter(
+            customer_data,
+            x=x_feature,
         y=y_feature,
         color='cluster',
         title=f"Customer Segments: {x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()}",
