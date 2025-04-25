@@ -78,17 +78,20 @@ def clean_retail_sales_data(df: pd.DataFrame) -> pd.DataFrame:
         if col != 'date' and col != 'store_id':  # Skip date and ID columns
             cleaned_df[col] = cleaned_df[col].fillna(cleaned_df[col].mode()[0])
 
-    # Convert boolean columns
+    # Ensure special_event is treated consistently (e.g., fillna if needed, but avoid bool conversion here)
     if 'special_event' in cleaned_df.columns:
-        cleaned_df['special_event'] = cleaned_df['special_event'].astype(bool)
+         # Example: Fill NA with a specific string like 'None' or 'False' string if needed, matching notebook logic
+         # cleaned_df['special_event'] = cleaned_df['special_event'].fillna('False') # Adjust if notebook used different fill
+         pass # Assuming mode fill already handled it appropriately as object type
 
-    # Handle outliers in sales data
-    for col in ['total_sales', 'online_sales', 'in_store_sales', 'avg_transaction']:
-        if col in cleaned_df.columns:
-            # Cap outliers at 3 standard deviations
-            mean, std = cleaned_df[col].mean(), cleaned_df[col].std()
-            lower_bound, upper_bound = mean - 3 * std, mean + 3 * std
-            cleaned_df[col] = cleaned_df[col].clip(lower_bound, upper_bound)
+    # Add temporal features consistent with data_exploration notebook
+    logger.info("Adding temporal features (year, month, day_of_week, is_weekend)")
+    cleaned_df['year'] = cleaned_df['date'].dt.year
+    cleaned_df['month'] = cleaned_df['date'].dt.month
+    cleaned_df['day_of_week'] = cleaned_df['date'].dt.dayofweek # 0=Monday, 6=Sunday
+    cleaned_df['is_weekend'] = cleaned_df['day_of_week'].isin([5, 6]).astype(int)
+
+    # NOTE: Outlier handling removed to match data_exploration notebook standard
 
     logger.info(f"Cleaned retail sales data: {cleaned_df.shape}")
     return cleaned_df

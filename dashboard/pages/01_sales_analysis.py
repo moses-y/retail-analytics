@@ -69,46 +69,46 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-@st.cache_data(ttl=3600)
-def load_sales_data():
-    """Load sales data from API or file"""
+@st.cache_data(ttl=3600) # Keep caching for performance
+def load_sales_data(file_path="data/raw/retail_sales_data.csv"):
+    """Load sales data directly from the raw CSV file."""
     try:
-        # Try to load from API
-        response = requests.get(f"{API_URL}/api/sales/data")
-        if response.status_code == 200:
-            data = response.json()
-            return pd.DataFrame(data)
-    except Exception as e:
-        st.warning(f"Could not load data from API: {e}")
-
-    # Fallback to file
-    try:
-        data = pd.read_csv("data/processed/retail_sales_data.csv")
+        data = pd.read_csv(file_path)
+        st.success(f"Successfully loaded data from {file_path}")
         return data
-    except Exception as e:
-        st.error(f"Could not load data from file: {e}")
-        # Return empty dataframe with expected columns
+    except FileNotFoundError:
+        st.error(f"Error: Raw data file not found at {file_path}")
+        # Return empty dataframe with expected columns if file not found
         return pd.DataFrame({
-            'date': [],
-            'store_id': [],
-            'category': [],
-            'weather': [],
-            'promotion': [],
-            'special_event': [],
-            'dominant_age_group': [],
-            'num_customers': [],
-            'total_sales': [],
-            'online_sales': [],
-            'in_store_sales': [],
-            'avg_transaction': [],
-            'return_rate': []
+            'date': [], 'store_id': [], 'category': [], 'weather': [],
+            'promotion': [], 'special_event': [], 'dominant_age_group': [],
+            'num_customers': [], 'total_sales': [], 'online_sales': [],
+            'in_store_sales': [], 'avg_transaction': [], 'return_rate': []
+        })
+    except Exception as e:
+        st.error(f"Error loading data from {file_path}: {e}")
+        # Return empty dataframe on other errors
+        return pd.DataFrame({
+            'date': [], 'store_id': [], 'category': [], 'weather': [],
+            'promotion': [], 'special_event': [], 'dominant_age_group': [],
+            'num_customers': [], 'total_sales': [], 'online_sales': [],
+            'in_store_sales': [], 'avg_transaction': [], 'return_rate': []
         })
 
 
 # Load data
-sales_data = load_sales_data()
+raw_sales_data = load_sales_data()
 
-# Convert date column to datetime
+# Clean and preprocess data using the standardized function
+# Ensure the function exists and handles potential errors
+if not raw_sales_data.empty:
+    st.info("Applying data cleaning and preprocessing...")
+    sales_data = clean_sales_data(raw_sales_data)
+    st.success("Data cleaning and preprocessing applied.")
+else:
+    sales_data = raw_sales_data # Use the empty dataframe if loading failed
+
+# Convert date column to datetime (redundant if done in clean_sales_data, but safe to keep)
 if 'date' in sales_data.columns:
     sales_data['date'] = pd.to_datetime(sales_data['date'])
 
@@ -159,7 +159,12 @@ kpi_metrics = [
 create_kpi_row(kpi_metrics)
 
 # Create tabs for different analyses
-tab1, tab2, tab3 = st.tabs(["Sales Trends", "Category Analysis", "Channel Analysis"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "Sales Trends",
+    "Category Analysis",
+    "Channel Analysis",
+    "Additional Analysis" # New Tab
+])
 
 with tab1:
     st.markdown('<div class="sub-header">Sales Trends</div>', unsafe_allow_html=True)
@@ -410,3 +415,94 @@ st.download_button(
     file_name="sales_analysis.csv",
     mime="text/csv"
 )
+
+# Add new tab for the missing plots
+with tab4:
+    st.markdown('<div class="sub-header">Additional Analysis</div>', unsafe_allow_html=True)
+
+    col_add1, col_add2 = st.columns(2)
+
+    with col_add1:
+        # Sales by Age Group
+        st.markdown("### Sales by Dominant Age Group")
+        if 'dominant_age_group' in filtered_data.columns:
+            age_sales = filtered_data.groupby('dominant_age_group')['total_sales'].mean().reset_index().sort_values('total_sales', ascending=False)
+            fig_age = px.bar(
+                age_sales,
+                x='dominant_age_group',
+                y='total_sales',
+                title="Average Sales by Dominant Age Group",
+                color='dominant_age_group',
+                template="plotly_white"
+            )
+            fig_age.update_layout(showlegend=False)
+            st.plotly_chart(fig_age, use_container_width=True)
+        else:
+            st.warning("Column 'dominant_age_group' not found.")
+
+        # Store Performance
+        st.markdown("### Total Sales by Store")
+        if 'store_id' in filtered_data.columns:
+            store_sales = filtered_data.groupby('store_id')['total_sales'].sum().reset_index().sort_values('total_sales', ascending=False)
+            fig_store = px.bar(
+                store_sales,
+                x='store_id',
+                y='total_sales',
+                title="Total Sales by Store",
+                color='store_id',
+                template="plotly_white"
+            )
+            fig_store.update_layout(showlegend=False)
+            st.plotly_chart(fig_store, use_container_width=True)
+        else:
+            st.warning("Column 'store_id' not found.")
+
+
+    with col_add2:
+        # Return Rate by Category
+        st.markdown("### Average Return Rate by Category")
+        if 'return_rate' in filtered_data.columns and 'category' in filtered_data.columns:
+            return_rate = filtered_data.groupby('category')['return_rate'].mean().reset_index().sort_values('return_rate', ascending=False)
+            fig_return = px.bar(
+                return_rate,
+                x='category',
+                y='return_rate',
+                title="Average Return Rate by Category",
+                color='category',
+                template="plotly_white"
+            )
+            fig_return.update_layout(yaxis_tickformat='.2%') # Format as percentage
+            fig_return.update_layout(showlegend=False)
+            st.plotly_chart(fig_return, use_container_width=True)
+        else:
+            st.warning("Columns 'return_rate' or 'category' not found.")
+
+        # Online vs In-store by Category (Stacked Bar)
+        st.markdown("### Online vs In-Store Sales by Category")
+        if 'category' in filtered_data.columns and 'online_sales' in filtered_data.columns and 'in_store_sales' in filtered_data.columns:
+            channel_cat_data = filtered_data.groupby('category')[['in_store_sales', 'online_sales']].sum().reset_index()
+            channel_cat_data_melted = pd.melt(
+                channel_cat_data,
+                id_vars=['category'],
+                value_vars=['in_store_sales', 'online_sales'],
+                var_name='Channel',
+                value_name='Sales'
+            )
+            # Rename channels for clarity
+            channel_cat_data_melted['Channel'] = channel_cat_data_melted['Channel'].replace({
+                'in_store_sales': 'In-Store',
+                'online_sales': 'Online'
+            })
+
+            fig_channel_cat = px.bar(
+                channel_cat_data_melted,
+                x='category',
+                y='Sales',
+                color='Channel',
+                title="Online vs In-Store Sales by Category",
+                barmode='stack', # Use stack instead of group
+                template="plotly_white"
+            )
+            st.plotly_chart(fig_channel_cat, use_container_width=True)
+        else:
+            st.warning("Required columns for Online vs In-Store chart not found.")
