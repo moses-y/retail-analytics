@@ -14,9 +14,9 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from src.visualization.plots import (
-    plot_sales_trend,
+    # plot_sales_trend, # Removed - Function does not exist in plots.py
     plot_sales_by_category,
-    plot_customer_segments,
+    # plot_customer_segments, # Removed - Function does not exist in plots.py
     plot_feature_importance,
     plot_sentiment_distribution
 )
@@ -27,11 +27,11 @@ def sales_trend_chart(
     date_col: str = 'date',
     value_col: str = 'total_sales',
     title: str = 'Sales Trend',
-    height: int = 400,
-    use_plotly: bool = True
+    height: int = 400
+    # use_plotly: bool = True # Removed - Only Plotly implementation available
 ) -> go.Figure:
     """
-    Create a sales trend chart
+    Create a sales trend chart (Plotly version)
 
     Args:
         data: DataFrame with sales data
@@ -39,33 +39,33 @@ def sales_trend_chart(
         value_col: Column name for values
         title: Chart title
         height: Chart height
-        use_plotly: Whether to use Plotly (True) or Matplotlib (False)
+        # use_plotly: Whether to use Plotly (True) or Matplotlib (False) # Removed
 
     Returns:
         Plotly figure
     """
-    if use_plotly:
-        fig = px.line(
-            data,
-            x=date_col,
-            y=value_col,
-            title=title,
-            height=height,
-            template="plotly_white"
-        )
+    # Always use Plotly implementation
+    fig = px.line(
+        data,
+        x=date_col,
+        y=value_col,
+        title=title,
+        height=height,
+        template="plotly_white"
+    )
 
-        fig.update_layout(
-            xaxis_title="Date",
-            yaxis_title="Sales ($)",
-            legend_title="Legend",
-            hovermode="x unified"
-        )
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Sales ($)",
+        legend_title="Legend",
+        hovermode="x unified"
+    )
 
-        return fig
-    else:
-        # Use matplotlib version from visualization module
-        fig = plot_sales_trend(data, date_column=date_col, value_column=value_col, title=title)
-        return fig
+    return fig
+    # else: # Removed - plot_sales_trend does not exist
+    #     # Use matplotlib version from visualization module
+    #     fig = plot_sales_trend(data, date_column=date_col, value_column=value_col, title=title)
+    #     return fig
 
 
 def sales_by_category_chart(
@@ -124,11 +124,11 @@ def customer_segments_chart(
     features: List[str],
     cluster_col: str = 'cluster',
     title: str = 'Customer Segments',
-    height: int = 500,
-    use_plotly: bool = True
+    height: int = 500
+    # use_plotly: bool = True # Removed - Only Plotly implementation available
 ) -> go.Figure:
     """
-    Create a customer segments chart
+    Create a customer segments chart (Plotly version)
 
     Args:
         data: DataFrame with customer data and cluster assignments
@@ -136,51 +136,51 @@ def customer_segments_chart(
         cluster_col: Column name for cluster assignments
         title: Chart title
         height: Chart height
-        use_plotly: Whether to use Plotly (True) or Matplotlib (False)
+        # use_plotly: Whether to use Plotly (True) or Matplotlib (False) # Removed
 
     Returns:
         Plotly figure
     """
-    if use_plotly:
-        # Calculate mean values for each cluster and feature
-        cluster_profiles = data.groupby(cluster_col)[features].mean().reset_index()
+    # Always use Plotly implementation
+    # Calculate mean values for each cluster and feature
+    cluster_profiles = data.groupby(cluster_col)[features].mean().reset_index()
 
-        # Melt the dataframe for easier plotting
-        melted = pd.melt(
-            cluster_profiles,
-            id_vars=[cluster_col],
-            value_vars=features,
-            var_name='Feature',
-            value_name='Value'
-        )
+    # Melt the dataframe for easier plotting
+    melted = pd.melt(
+        cluster_profiles,
+        id_vars=[cluster_col],
+        value_vars=features,
+        var_name='Feature',
+        value_name='Value'
+    )
 
-        # Create radar chart
-        fig = px.line_polar(
-            melted,
-            r='Value',
-            theta='Feature',
-            color=cluster_col,
-            line_close=True,
-            title=title,
-            height=height,
-            template="plotly_white"
-        )
+    # Create radar chart
+    fig = px.line_polar(
+        melted,
+        r='Value',
+        theta='Feature',
+        color=cluster_col,
+        line_close=True,
+        title=title,
+        height=height,
+        template="plotly_white"
+    )
 
-        fig.update_layout(
-            polar=dict(
-                radialaxis=dict(
-                    visible=True,
-                    range=[0, melted['Value'].max() * 1.1]
-                )
-            ),
-            showlegend=True
-        )
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, melted['Value'].max() * 1.1]
+            )
+        ),
+        showlegend=True
+    )
 
-        return fig
-    else:
-        # Use matplotlib version from visualization module
-        fig = plot_customer_segments(data, features=features, cluster_column=cluster_col, title=title)
-        return fig
+    return fig
+    # else: # Removed - plot_customer_segments does not exist
+    #     # Use matplotlib version from visualization module
+    #     fig = plot_customer_segments(data, features=features, cluster_column=cluster_col, title=title)
+    #     return fig
 
 
 def feature_importance_chart(

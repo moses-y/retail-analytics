@@ -3,7 +3,7 @@ Reusable filter components for the dashboard
 """
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date # Import date
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 
@@ -182,18 +182,34 @@ def apply_filters(
         # Handle different filter types
         if isinstance(filter_value, tuple) and len(filter_value) == 2:
             # Range filter
-            if isinstance(filter_value[0], datetime):
-                # Date range
-                filtered_data = filtered_data[
-                    (filtered_data[column] >= pd.Timestamp(filter_value[0])) &
-                    (filtered_data[column] <= pd.Timestamp(filter_value[1]))
-                ]
-            else:
-                # Numeric range
-                filtered_data = filtered_data[
-                    (filtered_data[column] >= filter_value[0]) &
-                    (filtered_data[column] <= filter_value[1])
-                ]
+            # Check if the column exists and is a datetime type
+            if column in filtered_data.columns and pd.api.types.is_datetime64_any_dtype(filtered_data[column]):
+                # Check if the filter value is a date/datetime object
+                if isinstance(filter_value[0], (datetime, date)): # Check for date or datetime
+                    try:
+                        # Convert filter values to Timestamp for safe comparison
+                        start_ts = pd.Timestamp(filter_value[0])
+                        end_ts = pd.Timestamp(filter_value[1])
+                        # Apply filter, handle NaT safely
+                        filtered_data = filtered_data[
+                            (filtered_data[column].notna()) & # Ensure column value is not NaT
+                            (filtered_data[column] >= start_ts) &
+                            (filtered_data[column] <= end_ts)
+                        ]
+                    except Exception as e:
+                        st.error(f"Error applying date filter on column '{column}': {e}")
+                # If filter value is not date/datetime, assume numeric range (or skip if column isn't numeric)
+                elif pd.api.types.is_numeric_dtype(filtered_data[column]):
+                     filtered_data = filtered_data[
+                         (filtered_data[column] >= filter_value[0]) &
+                         (filtered_data[column] <= filter_value[1])
+                     ]
+            # Handle numeric range if column is numeric but filter wasn't date
+            elif column in filtered_data.columns and pd.api.types.is_numeric_dtype(filtered_data[column]):
+                 filtered_data = filtered_data[
+                     (filtered_data[column] >= filter_value[0]) &
+                     (filtered_data[column] <= filter_value[1])
+                 ]
         elif isinstance(filter_value, list):
             # Multi-select filter
             if filter_value:  # Only apply if list is not empty

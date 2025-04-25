@@ -26,7 +26,7 @@ from dashboard.components.filters import (
 )
 
 # Import data utilities
-from src.data.preprocessing import preprocess_sales_data
+from src.data.preprocessing import clean_sales_data # Renamed from preprocess_sales_data
 from src.utils.config import get_api_config
 import requests
 import json
