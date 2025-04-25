@@ -179,10 +179,10 @@ async def query_reviews_rag(
             results = vector_db.query(
                 query_embeddings=[query_embedding.tolist()],
                 n_results=query.max_results,
-                where=filter_dict if filter_dict else None
-            )
-            
-            # If no results from vector DB, fall back to random sampling
+            where=filter_dict if filter_dict else None # Pass None if filter_dict is empty
+        )
+
+        # If no results from vector DB, fall back to random sampling
             if not results or len(results.get("ids", [[]])[0]) == 0:
                 logger.warning("No results from vector DB, falling back to random sampling")
                 
@@ -559,13 +559,26 @@ async def rag_query(
         # Get relevant reviews using vector search
         query_embedding = embedding_model.encode(request.query)
         
-        # Query vector database
-        results = vector_db.query(
-            query_embeddings=[query_embedding.tolist()],
-            n_results=5,
-            where={"product_id": request.product_id}
-        )
-        
+        # Construct the where filter only if product_id is provided
+        where_filter = None
+        if request.product_id:
+            where_filter = {"product_id": request.product_id}
+            logger.info(f"Applying where filter: {where_filter}")
+        else:
+            logger.info("No product_id filter applied.")
+
+        # Query vector database conditionally
+        query_args = {
+            "query_embeddings": [query_embedding.tolist()],
+            "n_results": 5
+        }
+        if where_filter:
+            query_args["where"] = where_filter
+        # If no filter, do not pass the 'where' argument
+
+        results = vector_db.query(**query_args)
+
+
         # Process results
         sources = []
         if results and len(results.get("ids", [[]])[0]) > 0:

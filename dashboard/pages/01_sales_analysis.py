@@ -123,11 +123,14 @@ filtered_data = create_filter_sidebar(
     numeric_columns=['total_sales', 'num_customers']
 )
 
-# Calculate KPIs
-total_sales = filtered_data['total_sales'].sum()
-avg_transaction = filtered_data['avg_transaction'].mean()
-num_customers = filtered_data['num_customers'].sum()
-online_ratio = (filtered_data['online_sales'].sum() / total_sales) * 100
+# Calculate KPIs safely
+st.info("Calculating KPIs...")
+total_sales = filtered_data['total_sales'].sum() if 'total_sales' in filtered_data.columns else 0
+avg_transaction = filtered_data['avg_transaction'].mean() if 'avg_transaction' in filtered_data.columns else 0
+num_customers = filtered_data['num_customers'].sum() if 'num_customers' in filtered_data.columns else 0
+online_sales_sum = filtered_data['online_sales'].sum() if 'online_sales' in filtered_data.columns else 0
+online_ratio = (online_sales_sum / total_sales * 100) if total_sales > 0 else 0
+st.success("KPIs calculated.")
 
 # Create KPI row
 kpi_metrics = [
