@@ -25,7 +25,6 @@ project.py
 # Jupyter Notebooks
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
-notebooks/output_plots*/
 
 # Virtual Environment
 venv/
