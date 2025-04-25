@@ -83,7 +83,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-@st.cache_data(ttl=3600)
+# @st.cache_data(ttl=3600) # Temporarily removed for debugging cache issue
 def load_customer_data():
     """Load customer segmentation data from API or file"""
     try:
@@ -114,7 +114,7 @@ def load_customer_data():
         })
 
 
-@st.cache_data(ttl=3600)
+# @st.cache_data(ttl=3600) # Temporarily removed for debugging cache issue
 def get_segment_profiles():
     """Get segment profiles from API"""
     try:
