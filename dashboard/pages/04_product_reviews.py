@@ -476,18 +476,21 @@ if product_summary:
             st.plotly_chart(fig, use_container_width=True)
 
             # Sentiment distribution
+            # Use the correct key 'sentiment_distribution' returned by the API
+            sentiment_dist = product.get('sentiment_distribution', {}) # Get the distribution dict
             sentiment_data = pd.DataFrame({
                 'Sentiment': ['Positive', 'Neutral', 'Negative'],
-                'Count': [
-                    product['sentiment_counts']['positive'],
-                    product['sentiment_counts']['neutral'],
-                    product['sentiment_counts']['negative']
+                'Proportion': [ # Use .get() for safety, API returns proportions
+                    sentiment_dist.get('positive', 0),
+                    sentiment_dist.get('neutral', 0),
+                    sentiment_dist.get('negative', 0)
                 ]
             })
+            # Note: The API returns proportions, not counts. The pie chart will show relative proportions.
 
             fig = px.pie(
                 sentiment_data,
-                values='Count',
+                values='Proportion', # Use Proportion for values
                 names='Sentiment',
                 title="Sentiment Distribution",
                 color='Sentiment',
@@ -504,44 +507,14 @@ if product_summary:
             st.plotly_chart(fig, use_container_width=True)
 
         with col2:
-            # Display summary
-            st.markdown("#### Summary")
-            st.markdown(product['summary'])
-
-            # Display strengths and weaknesses
-            st.markdown("#### Strengths")
-            for strength in product['strengths']:
-                st.markdown(f"- {strength}")
-
-            st.markdown("#### Areas for Improvement")
-            for weakness in product['weaknesses']:
-                st.markdown(f"- {weakness}")
-
-            # Display top features
-            st.markdown("#### Top Features")
-
-            # Create feature sentiment chart
-            feature_data = pd.DataFrame({
-                'Feature': list(product['feature_sentiment'].keys()),
-                'Sentiment': list(product['feature_sentiment'].values())
-            })
-
-            feature_data = feature_data.sort_values('Sentiment', ascending=False)
-
-            fig = px.bar(
-                feature_data,
-                x='Feature',
-                y='Sentiment',
-                title="Feature Sentiment",
-                color='Sentiment',
-                color_continuous_scale=['#F44336', '#FFC107', '#4CAF50'],
-                range_color=[-1, 1],
-                template="plotly_white"
-            )
-
-            fig.update_layout(height=300)
-
-            st.plotly_chart(fig, use_container_width=True)
+            # The /api/reviews/products endpoint currently only returns:
+            # product, category, average_rating, review_count, sentiment_distribution
+            # Therefore, we cannot display detailed summary, strengths/weaknesses, or feature sentiment here.
+            # Displaying a placeholder or basic info instead.
+            st.markdown("#### Product Details")
+            st.markdown(f"**Category:** {product.get('category', 'N/A')}")
+            st.markdown(f"**Review Count:** {product.get('review_count', 'N/A')}")
+            # Add more details here if they become available from the API endpoint
 
 # Download data button
 st.markdown("### Download Review Data")

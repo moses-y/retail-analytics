@@ -627,7 +627,7 @@ class ProductResponse(BaseModel):
 class RAGRequest(BaseModel):
     """Request model for RAG queries"""
     query: str = Field(..., description="User query about products")
-    product_id: str = Field(..., description="Product identifier to focus query on")
+    product_id: Optional[str] = Field(None, description="Optional product identifier to focus query on") # Made optional
 
     model_config = ConfigDict(
         json_schema_extra={

@@ -130,8 +130,11 @@ def load_product_data():
 def get_rag_response(query, product_id=None):
     """Get RAG response from API"""
     try:
-        # Prepare request payload - always include product_id
-        payload = {"query": query, "product_id": product_id}
+        # Prepare request payload
+        payload = {"query": query}
+        # Only include product_id if it's not None
+        if product_id:
+            payload["product_id"] = product_id
 
         # Make API request with corrected URL
         api_endpoint = f"{API_URL}/api/rag/query" # Added /api prefix back
