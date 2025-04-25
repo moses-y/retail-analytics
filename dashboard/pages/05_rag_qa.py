@@ -134,8 +134,10 @@ def get_rag_response(query, product_id=None):
         payload = {"query": query, "product_id": product_id}
 
         # Make API request with corrected URL
+        api_endpoint = f"{API_URL}/api/rag/query" # Added /api prefix back
+        st.info(f"Sending RAG query to: {api_endpoint}")
         response = requests.post(
-            f"{API_URL}/rag/query", # Corrected URL: removed extra /api
+            api_endpoint,
             json=payload
         )
 

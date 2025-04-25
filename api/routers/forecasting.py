@@ -136,7 +136,7 @@ async def analyze_sales(
 
         if request.store_id != "all":
             filtered_data = filtered_data[filtered_data["store_id"] == request.store_id]
-            
+
         if request.category != "all":
             filtered_data = filtered_data[filtered_data["category"] == request.category]
 
@@ -149,7 +149,7 @@ async def analyze_sales(
         }
         sales_trend = filtered_data.groupby("date")["total_sales"].sum().reset_index()
         sales_trend = sales_trend.rename(columns={"total_sales": "value"})
-        
+
         response = {
             "total_sales": total_sales,
             "sales_by_category": [
@@ -388,3 +388,131 @@ def generate_forecasts(
                 logger.error(f"Error generating forecast for {store_id}, {category}, {forecast_date}: {e}")
 
     return forecasts
+
+
+# <<< START NEW ENDPOINTS >>>
+@router.get(
+    "/forecasting/predict",
+    response_model=Dict[str, Any], # Using Dict for flexibility in response structure
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    },
+    summary="Get sales forecast",
+    description="Get sales forecast for a specific category and store (or all)"
+)
+async def get_forecast_predict(
+    horizon: int = Query(30, description="Number of days to forecast"),
+    category: Optional[str] = Query(None, description="Category to forecast (optional)"),
+    store_id: Optional[str] = Query(None, description="Store ID to forecast (optional)"),
+    api_key_valid: bool = Depends(verify_api_key),
+    retail_data=Depends(get_retail_data) # Use retail_data to get latest date
+):
+    """
+    Generate and return sales forecast based on query parameters.
+    Note: This currently simulates forecast generation.
+    """
+    logger.info(f"Received forecast request: horizon={horizon}, category={category}, store_id={store_id}")
+    try:
+        # Simulate forecast generation (replace with actual model prediction if available)
+        # Use the latest date from historical data as the starting point
+        latest_date = pd.to_datetime(retail_data["date"]).max()
+        forecast_dates = [latest_date + timedelta(days=i+1) for i in range(horizon)]
+
+        forecast_points = []
+        for forecast_date in forecast_dates:
+            # Simulate prediction - replace with actual model logic
+            predicted_sales = np.random.uniform(900, 1800) # Example random prediction
+            day_factor = 1.0 + 0.2 * (forecast_date.dayofweek >= 5)
+            month_factor = 1.0 + 0.1 * np.sin((forecast_date.month - 1) * np.pi / 6)
+            predicted_sales *= day_factor * month_factor
+
+            # Simulate bounds
+            lower_bound = predicted_sales * 0.85
+            upper_bound = predicted_sales * 1.15
+
+            # Find corresponding actual value if date exists in historical data (for plotting)
+            # This part is tricky without joining historical data properly, return None for now
+            actual_sales = None # Placeholder
+
+            forecast_points.append({
+                "date": forecast_date.strftime('%Y-%m-%d'),
+                "store_id": store_id or "All", # Use provided or 'All'
+                "category": category or "All", # Use provided or 'All'
+                "forecast": round(predicted_sales, 2),
+                "lower_bound": round(lower_bound, 2),
+                "upper_bound": round(upper_bound, 2),
+                "actual": actual_sales # Placeholder for actual value
+            })
+
+        # Placeholder metrics (replace with actual metrics if calculated)
+        metrics = {
+            "rmse": round(np.random.uniform(50, 150), 2),
+            "mae": round(np.random.uniform(40, 120), 2),
+            "mape": round(np.random.uniform(0.05, 0.15), 4),
+            "r2": round(np.random.uniform(0.7, 0.95), 2)
+        }
+
+        response = {
+            "forecast": forecast_points,
+            "metrics": metrics,
+            "model_version": "simulated-v1.0",
+            "created_at": datetime.now().isoformat()
+        }
+        logger.info(f"Generated simulated forecast for {len(forecast_points)} points.")
+        return response
+
+    except Exception as e:
+        logger.exception("Error generating simulated forecast")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating forecast: {str(e)}"
+        )
+
+
+@router.get(
+    "/forecasting/feature-importance",
+    response_model=Dict[str, List[Any]],
+    responses={
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    },
+    summary="Get feature importance",
+    description="Get feature importance scores from the forecasting model"
+)
+async def get_feature_importance_endpoint(
+    api_key_valid: bool = Depends(verify_api_key)
+    # model=Depends(get_forecasting_model) # Could load model here if needed
+):
+    """
+    Return feature importance scores.
+    Note: This currently returns placeholder data.
+    """
+    logger.info("Received request for feature importance")
+    try:
+        # Placeholder feature importance (replace with actual model importance)
+        # These should ideally match the features used in the model
+        placeholder_features = [
+            'total_sales_lag_1', 'total_sales_roll_7_mean', 'price_per_customer',
+            'day_of_week', 'month', 'online_ratio', 'num_customers',
+            'avg_transaction', 'total_sales_lag_7', 'promotion_None',
+            'weather_Sunny', 'is_weekend', 'dominant_age_group_25-34',
+            'total_sales_roll_14_mean', 'category_Electronics'
+        ]
+        placeholder_importance = sorted(np.random.rand(len(placeholder_features)).tolist(), reverse=True)
+
+        response = {
+            "features": placeholder_features,
+            "importance": placeholder_importance
+        }
+        logger.info("Returning placeholder feature importance.")
+        return response
+
+    except Exception as e:
+        logger.exception("Error retrieving feature importance")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving feature importance: {str(e)}"
+        )
+# <<< END NEW ENDPOINTS >>>

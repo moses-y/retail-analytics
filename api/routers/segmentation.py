@@ -89,18 +89,22 @@ async def get_segmentation_profiles():
             count = segment_counts.get(cluster_id, 0)
             percentage = round((count / total_count) * 100, 1) if total_count > 0 else 0
 
+            # Ensure standard Python types for JSON serialization
             structured_profiles.append({
-                "segment_id": cluster_id,
+                "segment_id": int(cluster_id), # Convert numpy.int64 to int
                 "name": details["name"],
                 "description": details["description"],
-                "size": count,
-                "percentage": percentage,
+                "size": int(count), # Convert numpy.int64 to int
+                "percentage": float(percentage), # Ensure float
                 "profile": profile_norm.to_dict(), # Nested dictionary of normalized features
                 "recommendations": details["recommendations"]
             })
 
         logger.info(f"Successfully calculated and returning structured profiles for {len(structured_profiles)} segments.")
-        return structured_profiles
+        # Convert the final list to ensure compatibility (though individual items are converted above)
+        # This might be redundant but ensures the outer list is standard JSON
+        from fastapi.encoders import jsonable_encoder
+        return jsonable_encoder(structured_profiles)
     except Exception as e:
         logger.exception(f"Error calculating or structuring segment profiles from {SEGMENTS_DATA_PATH}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {e}")

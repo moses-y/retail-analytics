@@ -148,9 +148,13 @@ st.markdown('<div class="sub-header">Sales Trend</div>', unsafe_allow_html=True)
 # Function to fetch sales data from the API
 @st.cache_data
 def fetch_sales_data(api_url):
+    """Fetch sales data, trying the correct /api/ path"""
+    api_endpoint = f"{api_url}/api/sales/data" # Corrected path
+    st.info(f"Attempting to fetch sales data from: {api_endpoint}")
     try:
-        response = requests.get(f"{api_url}/sales/data")
+        response = requests.get(api_endpoint)
         response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
+        st.success("Successfully fetched sales data from API.")
         return response.json()
     except requests.exceptions.RequestException as e:
         st.error(f"Error fetching sales data: {e}")

@@ -83,57 +83,56 @@ st.markdown("""
 
 
 @st.cache_data(ttl=3600)
-def load_review_data():
-    """Load review data from API or file"""
+def load_review_data(file_path="data/raw/product_reviews.csv"):
+    """Load review data directly from the raw CSV file."""
     try:
-        # Try to load from API
-        response = requests.get(f"{API_URL}/api/reviews/data")
-        if response.status_code == 200:
-            data = response.json()
-            return pd.DataFrame(data)
-    except Exception as e:
-        st.warning(f"Could not load data from API: {e}")
-
-    # Fallback to file
-    try:
-        data = pd.read_csv("data/processed/product_reviews.csv")
+        data = pd.read_csv(file_path)
+        st.success(f"Successfully loaded review data from {file_path}")
+        # Basic cleaning needed after loading raw data
+        if 'date' in data.columns:
+            data['date'] = pd.to_datetime(data['date'], errors='coerce')
+        if 'rating' in data.columns:
+            data['rating'] = pd.to_numeric(data['rating'], errors='coerce')
+        # Add other necessary cleaning steps if needed, matching preprocessing.py
         return data
-    except Exception as e:
-        st.error(f"Could not load data from file: {e}")
-        # Return empty dataframe with expected columns
+    except FileNotFoundError:
+        st.error(f"Error: Raw review data file not found at {file_path}")
         return pd.DataFrame({
-            'review_id': [],
-            'product': [],
-            'category': [],
-            'rating': [],
-            'review_text': [],
-            'feature_mentioned': [],
-            'attribute_mentioned': [],
-            'date': [],
-            'sentiment': []
+            'review_id': [], 'product': [], 'category': [], 'rating': [],
+            'review_text': [], 'feature_mentioned': [], 'attribute_mentioned': [],
+            'date': [], 'sentiment': []
+        })
+    except Exception as e:
+        st.error(f"Error loading review data from {file_path}: {e}")
+        return pd.DataFrame({
+            'review_id': [], 'product': [], 'category': [], 'rating': [],
+            'review_text': [], 'feature_mentioned': [], 'attribute_mentioned': [],
+            'date': [], 'sentiment': []
         })
 
 
 @st.cache_data(ttl=3600)
-def get_product_summary(product=None):
-    """Get product summary from API"""
+def get_product_summary(category=None, min_rating=None):
+    """Get product summary data from API using /api/reviews/products endpoint"""
     try:
-        # Prepare request parameters
         params = {}
-        if product:
-            params["product"] = product
+        if category:
+            params["category"] = category
+        if min_rating is not None:
+            params["min_rating"] = min_rating
 
-        # Make API request
-        response = requests.get(
-            f"{API_URL}/api/reviews/summary",
-            params=params
-        )
+        api_endpoint = f"{API_URL}/api/reviews/products" # Corrected endpoint
+        st.info(f"Fetching product summaries from: {api_endpoint} with params: {params}")
+        response = requests.get(api_endpoint, params=params)
 
         if response.status_code == 200:
             data = response.json()
-            return data
+            # The dashboard expects a specific structure, adapt if necessary
+            # For now, assume the API returns a list of product summaries directly
+            st.success("Successfully fetched product summaries.")
+            return data # Return the list of product dicts
         else:
-            st.error(f"API Error: {response.status_code} - {response.text}")
+            st.error(f"API Error fetching product summaries: {response.status_code} - {response.text}")
             return None
     except Exception as e:
         st.error(f"Error getting product summary: {e}")
@@ -141,25 +140,30 @@ def get_product_summary(product=None):
 
 
 @st.cache_data(ttl=3600)
-def get_feature_sentiment(product=None):
-    """Get feature sentiment from API"""
+def get_feature_sentiment(products: list = None):
+    """Get feature sentiment from API using /api/reviews/features endpoint"""
+    if not products: # Need at least one product
+        return None
     try:
-        # Prepare request parameters
-        params = {}
-        if product:
-            params["product"] = product
+        # Prepare request parameters - this endpoint expects a list of products
+        params = {"products": products}
 
-        # Make API request
-        response = requests.get(
-            f"{API_URL}/api/reviews/feature-sentiment",
-            params=params
-        )
+        api_endpoint = f"{API_URL}/api/reviews/features" # Corrected endpoint
+        st.info(f"Fetching feature sentiment from: {api_endpoint} for products: {products}")
+        # Note: GET requests don't typically send lists in query params easily.
+        # If the API expects a POST or different format, this needs adjustment.
+        # Assuming the API handles list query params correctly for now.
+        response = requests.get(api_endpoint, params=params)
 
         if response.status_code == 200:
             data = response.json()
-            return data
+            # The dashboard expects a flat list of features, but API returns dict keyed by product.
+            # We need to adapt the data structure or how it's used later.
+            # For now, return the raw dict.
+            st.success("Successfully fetched feature sentiment.")
+            return data # Returns dict like {"product1": [features...], "product2": [features...]}
         else:
-            st.error(f"API Error: {response.status_code} - {response.text}")
+            st.error(f"API Error fetching feature sentiment: {response.status_code} - {response.text}")
             return None
     except Exception as e:
         st.error(f"Error getting feature sentiment: {e}")
