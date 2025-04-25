@@ -36,19 +36,23 @@ jobs:
     
     - name: Check code formatting with Black
       run: |
+        source .venv/bin/activate # Activate venv first
         black --check --line-length 100 src tests api dashboard
     
     - name: Check imports with isort
       run: |
+        source .venv/bin/activate # Activate venv first
         isort --check-only --profile black src tests api dashboard
     
     - name: Lint with flake8
       run: |
+        source .venv/bin/activate # Activate venv first
         flake8 src tests api dashboard --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 src tests api dashboard --count --max-complexity=10 --max-line-length=100 --statistics
     
     - name: Type check with mypy
       run: |
+        source .venv/bin/activate # Activate venv first
         mypy --ignore-missing-imports src api dashboard
 
   test:
