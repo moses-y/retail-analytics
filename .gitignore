@@ -25,6 +25,7 @@ project.py
 # Jupyter Notebooks
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
+notebooks/output_plots*/
 
 # Virtual Environment
 venv/
@@ -110,3 +111,6 @@ data/vector_db/*
 credentials/
 *.pem
 *.key
+
+# User-specific rules
+.clinerules/

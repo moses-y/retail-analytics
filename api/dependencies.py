@@ -1,6 +1,12 @@
 """
 Dependencies for FastAPI application
 """
+# Try importing torch first to potentially resolve backend issues
+try:
+    import torch
+except ImportError:
+    pass # Ignore if torch isn't installed, though it should be for sentence-transformers
+
 import os
 from functools import lru_cache
 
@@ -12,7 +18,7 @@ from pydantic import Field
 import mlflow
 import pandas as pd
 import numpy as np
-from sentence_transformers import SentenceTransformer
+# Removed SentenceTransformer import from top level
 import xgboost as xgb
 from sklearn.cluster import KMeans
 import chromadb # Import chromadb for exception handling
@@ -187,14 +193,20 @@ def get_sentiment_model():
 @lru_cache(maxsize=1)
 def get_embedding_model():
     """Get text embedding model"""
+    # Import SentenceTransformer here to delay loading
+    from sentence_transformers import SentenceTransformer
+
     model_config = get_model_config()
     model_name = model_config["embeddings"]["sentence_transformer"]["model_name"]
 
     try:
+        logger.info(f"Loading SentenceTransformer model: {model_name}")
         model = SentenceTransformer(model_name)
+        logger.info("SentenceTransformer model loaded successfully.")
         return model
     except Exception as e:
         # Log the error and raise
+        logger.exception(f"Error loading embedding model '{model_name}': {e}") # Use logger.exception
         print(f"Error loading embedding model: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -226,7 +238,7 @@ def get_vector_db():
             # Try getting the collection first
             collection = client.get_collection(name=collection_name)
             logger.info(f"Found existing collection: {collection_name}")
-        except chromadb.errors.NotFoundError: # Corrected exception type
+        except chromadb.errors.InvalidCollectionException: # Catch the actual exception being raised
             # Collection doesn't exist, create it
             logger.warning(f"Collection '{collection_name}' not found. Creating it.")
             collection = client.create_collection(

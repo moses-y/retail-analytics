@@ -2,6 +2,8 @@
 Script to build and populate the RAG vector database (ChromaDB)
 """
 import os
+# Set environment variable to prevent TensorFlow loading attempt by transformers
+os.environ['USE_TF'] = '0'
 import sys
 import logging
 import pandas as pd

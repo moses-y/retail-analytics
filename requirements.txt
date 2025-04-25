@@ -25,7 +25,7 @@ huggingface-hub==0.20.0
 # API & Web
 fastapi>=0.95.2
 uvicorn>=0.22.0
-streamlit>=1.22.0
+streamlit>=1.30.0 # Updated to a version known to have link_button
 pydantic>=2.10.0
 pydantic-settings>=2.0.0
 

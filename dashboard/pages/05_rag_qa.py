@@ -130,15 +130,13 @@ def load_product_data():
 def get_rag_response(query, product_id=None):
     """Get RAG response from API"""
     try:
-        # Prepare request parameters
-        params = {"query": query}
-        if product_id:
-            params["product_id"] = product_id
+        # Prepare request payload - always include product_id
+        payload = {"query": query, "product_id": product_id}
 
-        # Make API request
+        # Make API request with corrected URL
         response = requests.post(
-            f"{API_URL}/api/rag/query",
-            json=params
+            f"{API_URL}/rag/query", # Corrected URL: removed extra /api
+            json=payload
         )
 
         if response.status_code == 200:

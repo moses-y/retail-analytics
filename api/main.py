@@ -12,7 +12,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from prometheus_client import Counter, Histogram, start_http_server
 
-from api.routers import forecasting, reviews
+from api.routers import forecasting, reviews, sales, segmentation, products, rag # Added new routers
 from api.dependencies import get_settings, Settings
 
 # Setup logging
@@ -52,6 +52,10 @@ app.add_middleware(
 # Include routers
 app.include_router(forecasting.router, prefix="/api", tags=["forecasting"])
 app.include_router(reviews.router, prefix="/api", tags=["reviews"])
+app.include_router(sales.router, prefix="/api", tags=["sales"]) # Added sales router
+app.include_router(segmentation.router, prefix="/api", tags=["segmentation"]) # Added segmentation router
+app.include_router(products.router, prefix="/api", tags=["products"]) # Added products router
+app.include_router(rag.router, prefix="/api", tags=["rag"]) # Added rag router
 
 # Prometheus metrics
 REQUEST_COUNT = Counter(
@@ -100,10 +104,12 @@ async def root(settings: Settings = Depends(get_settings)):
         "environment": settings.environment,
         "docs_url": "/docs",
         "endpoints": {
-            "forecasting": "/api/v1/forecasting",
-            "reviews": "/api/v1/reviews",
-            "segmentation": "/api/v1/segments",
-            "rag": "/api/v1/rag"
+            "forecasting": "/api/forecasting", # Corrected path prefix
+            "reviews": "/api/reviews", # Corrected path prefix
+            "segmentation": "/api/segmentation", # Corrected path prefix
+            "sales": "/api/sales", # Added sales endpoint info
+            "products": "/api/products", # Added products endpoint info
+            "rag": "/api/rag" # Corrected path prefix
         }
     }
 

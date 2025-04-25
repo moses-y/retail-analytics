@@ -6,13 +6,15 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 import sys
+import requests
 
 # Add the project root to the path
 sys.path.append(str(Path(__file__).parent.parent))
 
-# Import utilities
+# Import utilities and components
 from src.utils.config import get_api_config
 from src.utils.metrics import format_metrics
+from dashboard.components.charts import sales_trend_chart
 
 # Set page configuration
 st.set_page_config(
@@ -43,10 +45,14 @@ st.markdown("""
     }
     .card {
         padding: 1.5rem;
-        border-radius: 0.5rem;
-        background-color: #f8f9fa;
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        margin-bottom: 1rem;
+        border-radius: 0.75rem; /* Increased border-radius */
+        background-color: #ffffff; /* Changed background to white */
+        box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1); /* Increased box shadow */
+        margin-bottom: 1.5rem; /* Increased bottom margin */
+        transition: transform 0.3s ease-in-out; /* Add hover effect */
+    }
+    .card:hover {
+        transform: translateY(-5px); /* Lift card on hover */
     }
     .metric-value {
         font-size: 2rem;
@@ -127,6 +133,63 @@ with col4:
     st.markdown('<div class="metric-value">+8.5%</div>', unsafe_allow_html=True)
     st.markdown('<div class="metric-label">Sales Growth</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
+
+# Add section for recent activity or key highlights
+st.markdown('<div class="sub-header">Recent Activity & Highlights</div>', unsafe_allow_html=True)
+st.markdown("""
+- Latest sales data updated on 2025-04-24.
+- New customer segment "High-Value Loyal Customers" identified.
+- Positive trend in product reviews for the electronics category.
+""")
+
+# Add sales trend chart
+st.markdown('<div class="sub-header">Sales Trend</div>', unsafe_allow_html=True)
+
+# Function to fetch sales data from the API
+@st.cache_data
+def fetch_sales_data(api_url):
+    try:
+        response = requests.get(f"{api_url}/sales/data")
+        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error fetching sales data: {e}")
+        return None
+
+# Fetch sales data
+sales_data = fetch_sales_data(API_URL)
+
+if sales_data:
+    # Convert data to DataFrame
+    sales_df = pd.DataFrame(sales_data)
+    # Assuming 'date' column exists and is in a format pandas can understand
+    sales_df['date'] = pd.to_datetime(sales_df['date'])
+    # Assuming 'total_sales' column exists
+    sales_df = sales_df.sort_values('date')
+
+    # Display sales trend chart
+    sales_fig = sales_trend_chart(sales_df, date_col='date', value_col='total_sales')
+    st.plotly_chart(sales_fig, use_container_width=True)
+else:
+    st.warning("Could not load sales trend chart due to data fetching error.")
+
+# Add Call to Action
+st.markdown('<div class="sub-header">Explore Further</div>', unsafe_allow_html=True)
+st.markdown("""
+Dive deeper into your retail data by exploring the dedicated sections of the dashboard:
+""")
+
+col_cta1, col_cta2, col_cta3 = st.columns(3)
+
+with col_cta1:
+    st.link_button("Sales Analysis", url="/Sales_Analysis")
+
+with col_cta2:
+    st.link_button("Customer Segments", url="/Customer_Segments")
+
+with col_cta3:
+    st.link_button("Product Reviews", url="/Product_Reviews")
+
 
 # Footer
 st.markdown('<div class="footer">Data last updated: 2025-04-24</div>', unsafe_allow_html=True)
